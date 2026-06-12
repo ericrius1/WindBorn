@@ -152,16 +152,36 @@ Voice: read TWO of these before writing a word (in the sibling repo
 - Performance: every demo at 60 fps on an M-series laptop. Hero demos can
   be richer; in-article demos stay focused on one idea.
 
-## Old repo as a quarry
+## Standalone identity (hard rule)
+
+Stillwater is its own project with its own voice. Published prose must NEVER
+mention, link to, or allude to any other project, site, repo, or series
+outside this one — no "as we did in…", no "our previous series", no
+"ported from…", no external blog links. Each post may assume only what
+EARLIER STILLWATER POSTS established (link to those liberally). If a reader
+landed here from a search engine, nothing should hint that other projects
+exist. This applies to html prose, subtitles, code comments are exempt but
+keep them about the code, not about other projects.
+
+## Geometry house rule
+
+No SDF / isosurface / marching-cubes / surface-nets pipelines for character
+or creature modeling. Model meshes DIRECTLY: lofted cross-section rings
+along spine curves, quad strips for wing surfaces, merged low-poly
+primitives, hand-placed BufferGeometry. (SDF-style math is still fine inside
+shaders for clouds/water/effects — the rule is about character geometry.)
+
+## Old repo as a quarry (internal only)
 
 `/Users/eric/codeprojects/AlgorythmicExplorations/` (read-only) has working
-code for almost everything: capsule/SDF bird modeling + surface nets
-(`src/lib/bird/`), IK + springs (`src/lib/bear/`), flight model + landing
+code worth adapting: ring-loft character building + IK + springs
+(`src/lib/bear/loft.ts`, `ik.ts`, `animator.ts`), flight model + landing
 guidance + syrinx (`src/demos/birdFlight.ts`, `birdLanding.ts`), terrain
 noise/erosion/trees/scatter/chunks (`src/lib/terrain/`), WebAudio patterns
-(`src/lib/audio.ts`, `src/lib/piano.ts`). Adapt freely into your own series
-lib — copy the algorithm, rewrite for this repo's contracts (spine, y=0
-water). Never import across repos.
+(`src/lib/audio.ts`, `src/lib/piano.ts`). Adapt algorithms into your own
+series lib, rewritten for this repo's contracts (spine, y=0 water, mesh-only
+characters). Never import across repos, and per the identity rule above:
+the quarry is invisible in everything a reader sees.
 
 ## Verification (required before you call a task done)
 

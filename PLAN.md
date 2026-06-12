@@ -73,9 +73,11 @@ pages it promises.
    later series.
 
 **S2 New Feathers** (the bird) — `src/lib/bird/`, demos `src/demos/bird/`
-1. `osprey.html` — osprey modeled from capsules/SDF smooth unions (mine the
-   old repo's wren + bear pipeline), distinctive silhouette: long crooked
-   wings, white belly, dark eye-stripe, talons.
+1. `osprey.html` — osprey modeled as a DIRECT MESH (no SDF/isosurface):
+   body lofted from elliptical cross-section rings along a spine curve,
+   wings as feathered quad strips, head/beak lofted, tail fan from planes.
+   Distinctive silhouette: long crooked wings, white belly, dark
+   eye-stripe, talons.
 2. `wingfold.html` — three-segment wing rig (shoulder/elbow/wrist), fold,
    extend, twist; law-of-cosines IK.
 3. `flap.html` — asymmetric wingbeat clock, gait blending (hover flap,
