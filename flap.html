@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Flap Cycle — Stillwater</title>
+    <meta
+      name="description"
+      content="Fish Hawk's wingbeat: a time-warped stroke clock that favors the downstroke, gaits blended from hover to cruise to glide with one number, and per-feather lag springs."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-flap"></div>
+      <div class="hero-title">
+        <h1>The Flap Cycle</h1>
+        <p class="subtitle">
+          A wingbeat is a loop, but it is not a sine. We warp the clock so the
+          downstroke gets the time it pays for, fold the wrist on the way up,
+          compress every flight style into one number, and let the feathers
+          run a beat behind.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        In Fish Hawk, flapping is the expensive verb. Soaring is free, gliding
+        is cheap, but every wingbeat will eventually burn stamina — which
+        means the player will be <em>watching</em> wingbeats, judging them,
+        rationing them. An animation the player studies that closely can't be
+        a canned clip. It has to be built from the same parts the gameplay
+        reads: a rate, an amplitude, a rhythm. Luckily we ended the
+        <a href="/wingfold.html">last post</a> holding exactly the right tool
+        — a wing that flies to wherever its tip target sits. A wingbeat is
+        just a target that moves in a loop. The whole question of this post is:
+        what loop?
+      </p>
+
+      <h2><span class="kicker">Step 1 · The clock</span>Not a sine</h2>
+      <p>
+        Run the tip up and down on <code>cos(2πt)</code> and the result is
+        instantly, bizarrely wrong — a bird treading water. The reason is that
+        flapping is not symmetric work. The downstroke is the power stroke:
+        wing fully spread, blade biting, the stroke that pays for everything.
+        The upstroke is overhead — recovery between payments. A real bird
+        spends more of each period on the half that pays, then hurries home.
+      </p>
+      <p>
+        So we warp time. Let phase <code>p</code> run 0→1 per beat and give
+        the downstroke a share <code>downFrac</code> of it. Inside the
+        downstroke, the stroke angle θ sweeps 0→π at one speed; the upstroke
+        sweeps π→2π faster. Tip height is still <code>cos θ</code> — the shape
+        is untouched, only the <em>timing</em> bends. At
+        <code>downFrac&nbsp;=&nbsp;0.57</code> (our cruise) the descent
+        lingers and the recovery snaps, and the same three numbers fall out of
+        θ for free: vertical position, fore-aft sweep
+        (<code>sin θ</code> — the tip draws a loop, not a line), and a bell
+        curve over the upstroke that we'll use in a moment.
+      </p>
+      <div data-demo="clock"></div>
+
+      <h2><span class="kicker">Step 2 · The stroke</span>Offsets on the target</h2>
+      <p>
+        The clock's outputs become offsets on the wing target, layered onto
+        whatever baseline the wing already wanted: vertical excursion
+        <code>amp·vert</code>, fore-aft <code>amp·sweep</code> scaled by a
+        stroke-plane tilt (a hovering bird rows air downward and backward, so
+        its stroke plane tips back), and blade twist proportional to
+        <code>−sweep</code>, pitching the leading edge down exactly during the
+        power stroke the way the air would. The fourth offset is the most
+        birdlike: during the upstroke, that bell curve multiplies the
+        extension down, folding the wrist by up to a third. Dragging a fully
+        spread wing back up through the air would refund most of the
+        downstroke — pulling span in is how the refund gets refused. The
+        sliders below are the whole vocabulary of a wingbeat:
+      </p>
+      <div data-demo="beat"></div>
+      <aside class="note">
+        <span class="note-label">Aside · Real numbers</span>
+        <p>
+          Cruising ospreys beat their wings at roughly 2.5–3.2&nbsp;Hz — slow
+          and rangy compared to a crow, exactly what 1.6&nbsp;m of span
+          predicts. And when one pauses mid-hunt to inspect a shadow, it
+          "kites": body pitched steeply, stroke plane tilted far back, beating
+          faster and deeper just to stand still on the wind. That posture is a
+          point in our knob space, which is the entire idea of the next step.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 3 · Gaits</span>How she's flying, in one number</h2>
+      <p>
+        Collect those knobs — rate multiplier, amplitude, downstroke share,
+        upstroke fold, twist, baseline extension and tip height, stroke-plane
+        tilt, body pitch, tail spread — and any particular flight style is a
+        row of values. We keep three rows. <strong>Hover</strong>: steep body,
+        huge deep strokes, plane tilted way back, tail fanned. <strong>
+        Cruise</strong>: the workhorse beat, moderate everything.
+        <strong>Glide</strong>: amplitude collapsed to a residual breathing,
+        wrists up, tips drooped below — the M — and the flap mix at zero. Then
+        flight state compresses to a single scalar: <code>gait01</code> runs
+        hover→cruise→glide and every parameter lerps along it. The flight
+        model in a later series will set this number from airspeed; today,
+        you are the flight model:
+      </p>
+      <p>
+        Two details make the morph seamless. First, plain linear blending is
+        actually safe here, because every parameter in the table is smooth and
+        means the same thing in every row — there's no "blend a walk with a
+        handstand" failure case hiding between hover and cruise. Second, and
+        more important: the clock never resets. Phase keeps accumulating
+        through any gait change, so moving the slider mid-beat just means the
+        current stroke finishes under new management. Watch the wings when you
+        slam from glide back to hover — no snap, because amplitude is the only
+        thing that changed, and the stroke was already in progress at zero
+        amplitude. The body joins in too: the gait carries its own pitch (a
+        hovering bird stands nearly upright on the air) and the root bobs
+        gently against the stroke, the reaction force made visible.
+      </p>
+      <div data-demo="gaits"></div>
+
+      <h2><span class="kicker">Step 4 · Feathers</span>The lag that sells it</h2>
+      <p>
+        Watch slow footage of any large bird and the wing never moves as one
+        rigid sheet: the primaries arrive late. Each feather is a cantilevered
+        beam loaded by air — it bends away from the motion and springs back.
+        We fake the physics with the cheapest spring there is: each feather
+        carries a damped spring that <em>chases</em> the stroke's vertical
+        offset, and the feather deflects by how far behind it's running —
+        deflection = (spring − driver) × gain, clamped to a sane angle and
+        applied as one rotation at the quill. When the wing slams down, the
+        spring hasn't caught up yet, so the difference is positive and the
+        vane bends up — exactly what the air would do, derived from nothing
+        but lag. Outer primaries get more gain and a lazier frequency (a
+        longer beam is a softer beam), secondaries barely move, and an
+        underdamped ζ around 0.5 leaves a flutter ringing at each stroke
+        reversal. Forty-odd springs, one multiply-add each, and this is the
+        single biggest jump in perceived quality of the whole series. The
+        springs get their full derivation in the <a href="/poses.html">next
+        post</a>; here, just feel the difference — toggle them off and the
+        bird turns to tin.
+      </p>
+      <div data-demo="feathers"></div>
+
+      <p>
+        The osprey now flies in place: she hovers, cruises, glides, and her
+        feathers ride the beat a breath behind. But everything so far is
+        steady-state — a bird holding one behavior forever. The game is made
+        of the other moments: the instant she folds into a dive, throws
+        everything forward to brake, swings her feet to strike. Those are
+        <em>actions</em>, and they deserve their own machinery —
+        <a href="/poses.html">pose targets, blended by springs, layered right
+        on top of this gait</a>. That's next.
+      </p>
+    </main>
+    <footer>
+      <p>
+        <a href="https://github.com/ericrius1/stillwater">Source on GitHub</a>
+      </p>
+    </footer>
+    <script type="module" src="/src/flap.ts"></script>
+  </body>
+</html>

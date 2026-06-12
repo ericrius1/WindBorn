@@ -115,9 +115,13 @@ hand-write navigation.
 
 ## Writing the prose
 
-Voice: read TWO of these before writing a word (in the sibling repo
-`/Users/eric/codeprojects/AlgorythmicExplorations/`): `wingbeat.html`,
-`heightfield.html`, `erosion.html`. That's the bar. Rules of thumb:
+Voice: your own. You are a game developer building Fish Hawk in public,
+walking the reader through each system step by step — always aware of how
+today's topic plugs into the final game. Open by situating the post in the
+bigger build (what the game needs and why); close with what it unlocks
+next. Confident, concrete, plainspoken, curious about the craft; "we" that
+includes the reader is welcome. Don't imitate anything external — this
+project sounds like itself. Rules of thumb:
 
 - Teach from first principles; derive, don't assert. Equations appear as
   plain prose + inline `<code>` or small `<pre>` blocks, not images.
@@ -171,17 +175,12 @@ along spine curves, quad strips for wing surfaces, merged low-poly
 primitives, hand-placed BufferGeometry. (SDF-style math is still fine inside
 shaders for clouds/water/effects — the rule is about character geometry.)
 
-## Old repo as a quarry (internal only)
+## Self-contained (hard rule)
 
-`/Users/eric/codeprojects/AlgorythmicExplorations/` (read-only) has working
-code worth adapting: ring-loft character building + IK + springs
-(`src/lib/bear/loft.ts`, `ik.ts`, `animator.ts`), flight model + landing
-guidance + syrinx (`src/demos/birdFlight.ts`, `birdLanding.ts`), terrain
-noise/erosion/trees/scatter/chunks (`src/lib/terrain/`), WebAudio patterns
-(`src/lib/audio.ts`, `src/lib/piano.ts`). Adapt algorithms into your own
-series lib, rewritten for this repo's contracts (spine, y=0 water, mesh-only
-characters). Never import across repos, and per the identity rule above:
-the quarry is invisible in everything a reader sees.
+This repo is the whole world. Do not read, reference, adapt from, or import
+code or prose from any other repo or project — derive every algorithm from
+first principles right here. (This also makes the standalone-identity rule
+trivially true.)
 
 ## Verification (required before you call a task done)
 

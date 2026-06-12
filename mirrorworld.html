@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Mirror World — Stillwater</title>
+    <meta
+      name="description"
+      content="Planar reflections from first principles: a camera mirrored under the lake, a scene rendered into a texture, an oblique clip plane, and ripples that smear the double honestly."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-mirrorworld"></div>
+      <div class="hero-title">
+        <h1>The Mirror World</h1>
+        <p class="subtitle">
+          Until now the lake has been reflecting a painted sky. Time to make it
+          reflect the <em>world</em> — mountains, the snag, the buoys — by rendering
+          the whole scene a second time, upside down, from an eye that lives
+          underwater.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        The lake we built in <a href="/skin.html">part one</a> and rippled in
+        <a href="/ripples.html">part two</a> has been getting away with a trick: when a
+        pixel needs to know what reflects, it asks an analytic sky-dome function and
+        nobody checks its work. That stops mattering the moment anything stands at the
+        shoreline. Fish Hawk's lake sits in a glacial bowl — ridgelines all around, a
+        dead snag where the nest will go, and eventually a bird skimming two meters off
+        the surface. Every one of those things needs a double in the water, or the
+        scene splits into "lake" and "stuff", two layers that don't believe in each
+        other. Today we earn the double: true planar reflections, derived from a
+        geometric fact so clean it feels like cheating.
+      </p>
+
+      <h2><span class="kicker">Step 1 · The mirrored eye</span>A camera under the lake</h2>
+      <p>
+        Here's the fact. Stand at the shore and look at a mountain's reflection. The
+        light reaching you left the mountain, hit the water at some point, and bounced
+        up to your eye — equal angles in, out. Now reflect <em>yourself</em> across the
+        water plane instead: put a phantom eye at your position with its height negated,
+        <code>(x, y, z) → (x, −y, z)</code>. The bounced path from mountain to surface
+        to you and the straight path from mountain to the phantom have identical
+        geometry — same intersection point, same lengths, mirrored. Which means:
+        <strong>everything a flat mirror shows you is an ordinary photograph taken by
+        your mirrored twin.</strong> No ray tracing required; a second rasterized render
+        from a second camera position is <em>exact</em> for a flat mirror.
+      </p>
+      <p>
+        To build the twin we mirror all three vectors that define a camera: position,
+        forward, and up — each with its <code>y</code> negated. Scroll through the
+        construction:
+      </p>
+
+      <div data-scrolly="mirror-camera"></div>
+
+      <p>
+        The demo below renders our shoreline scene from both eyes. Toggle to the twin
+        and you're under the lake looking up: the world hangs overhead like a ceiling.
+        That image — exactly that image — is what the water will wear:
+      </p>
+
+      <div data-demo="second-camera"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · Why not just ray trace, or screen-space hacks?</span>
+        <p>
+          Screen-space reflection reuses the main image, so anything not on screen —
+          the underside of a branch, terrain behind the camera — simply vanishes from
+          the water, and the artifacts crawl as you move. Real ray tracing solves
+          everything and costs everything. The planar mirror is the one special case
+          where plain rasterization is <em>exactly</em> right, because all reflected
+          rays share a single virtual viewpoint. A lake at y = 0 is the best reflection
+          deal in graphics; we'd be fools not to take it.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · The double as a texture</span>Render, then look up</h2>
+      <p>
+        Each frame now runs twice: first the twin renders the scene (with the water
+        itself hidden — it shouldn't reflect its own surface) into an offscreen
+        <strong>render target</strong>; then the main camera renders normally, and the
+        water material samples that texture. The lookup is almost embarrassingly
+        simple: because the twin shares the main camera's projection, the reflected
+        image lines up with the screen pixel for pixel, so a fragment at screen
+        position <code>(u, v)</code> reads the texture at <code>(1 − u, v)</code>. The
+        horizontal flip is the fingerprint of a mirror: a reflection across a plane
+        reverses handedness, but a camera's <code>lookAt</code> always rebuilds a
+        proper right-handed frame, and the difference between those two — one flip —
+        lands in the image. Sampling x-backwards puts it back.
+      </p>
+      <p>
+        Two practical details. The twin can see underwater geometry that no reflection
+        should contain, so we shear its projection matrix to make the near plane
+        coincide with the water itself — an <em>oblique near plane</em>, clipping
+        everything below y = 0 for free. And because the reflection is just a texture,
+        its resolution is a budget knob independent of the main image. Crank it down in
+        the demo and watch the mirror — and only the mirror — go soft:
+      </p>
+
+      <div data-demo="perfect-mirror"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · The oblique clip, briefly</span>
+        <p>
+          A projection matrix's third row computes clip-space depth. The trick is to
+          replace that row so the equation "depth = near plane" becomes the water
+          plane's equation in camera space — the far plane gets skewed in the process,
+          which costs depth precision but never correctness for our shallow scenes.
+          It's a four-line matrix surgery in the library, performed on the twin every
+          frame after copying the main projection.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 3 · The ripples take the mirror</span>Perturbing the lookup</h2>
+      <p>
+        A perfect mirror is a dead lake. On real water, every ripple facet tilts the
+        reflected ray: where the surface pitches by a small angle <code>α</code>, the
+        reflection swings by <code>2α</code>, and the mirror image wobbles, stretches,
+        and tears along the wave crests. The exact answer would re-intersect every
+        tilted ray with the scene — ray tracing through the back door. The honest cheap
+        answer: nudge the texture lookup sideways by the normal's tilt,
+      </p>
+      <pre><code>uv = (1 − u, v) + normal.xz × strength</code></pre>
+      <p>
+        which is the first-order version of that ray swing, projected to the screen.
+        It inherits everything we built in <a href="/ripples.html">part two</a> for
+        free — wind speed, choppiness, gusts — because it reads the same analytic
+        normal the glints use. Push the wind and the mountain doubles shatter into
+        streaks; push the distortion slider past honest and watch the trick expose
+        itself (edges drag in pixels that don't belong — the classic tell of a
+        screen-space offset):
+      </p>
+
+      <div data-demo="rippled-mirror"></div>
+
+      <h2><span class="kicker">Step 4 · Weighted home</span>Fresnel takes the wheel again</h2>
+      <p>
+        Raw reflection everywhere makes liquid chrome — gorgeous, and wrong. The
+        Fresnel ramp from <a href="/skin.html">part one</a> already told us the law:
+        2% mirror at your feet, ~100% at the horizon. So the planar reflection simply
+        replaces the painted sky in the same one-line skin,
+        <code>mix(body, reflection, F) + glint</code>, and the mirror world fades in
+        exactly where physics wants it. Toggle the weight off and on — chrome, then
+        water:
+      </p>
+
+      <div data-demo="mirror-skin"></div>
+
+      <h2><span class="kicker">Onward</span>What this unlocks</h2>
+      <p>
+        The lake now carries the world on its back: geometry above the waterline gets
+        an honest, rippled, Fresnel-weighted double, at the cost of one extra render
+        into a half-resolution texture. What it still fakes is everything <em>below</em>
+        the line — the body color is a flat deep-water constant, no matter how shallow
+        the shore. Next we open the water up: Beer–Lambert absorption to tint the
+        depths channel by channel, Snell refraction to bend the view rays, and a
+        lakebed you can finally see at your feet — right where Fresnel always promised
+        the window would be.
+      </p>
+    </main>
+    <footer>
+      <p>Stillwater — building Fish Hawk in public, one system at a time.</p>
+    </footer>
+    <script type="module" src="/src/mirrorworld.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Folding Wing — Stillwater</title>
+    <meta
+      name="description"
+      content="Rigging Fish Hawk's osprey wing: forward kinematics on a three-segment chain, a closed-form two-bone IK from the law of cosines, pole vectors, blade roll, and the fold as one scalar."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-wingfold"></div>
+      <div class="hero-title">
+        <h1>The Folding Wing</h1>
+        <p class="subtitle">
+          Three joints, one triangle, and an ancient theorem. We rig the
+          osprey's arm — shoulder, elbow, wrist — and solve it in closed form,
+          so the whole journey from sleeping bundle to 1.6-meter span is a
+          single number.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        The osprey we <a href="/osprey.html">lofted last time</a> is frozen at
+        full span. That was deliberate — flat, extended wings are the honest
+        shape to model feathered surfaces in — but Fish Hawk needs the other
+        shapes constantly. Perched on the snag, the wings disappear into the
+        body. In a dive they sweep back to slivers. In a glide they crank into
+        the M. Between any two of those, the player is watching the wing
+        <em>travel</em>, and the travel has to look like an arm folding, not
+        like a morph between meshes. So today the bird gets joints, and the
+        joints get a solver.
+      </p>
+      <p>
+        The skeleton is free, because the parts table from part one already is
+        one: every row has a pivot, a far end, and a parent. Each row becomes
+        a bone — a joint holding one rotation — and the skin we lofted comes
+        along because every ring wrote down, at construction time, which
+        joints it belongs to. Body rings follow the body, neck rings blend
+        into the head, and each wing ring splits its loyalty between the two
+        nearest arm segments, so the membrane creases smoothly at the elbow
+        instead of cracking.
+      </p>
+
+      <h2><span class="kicker">Step 1 · Forward</span>The chain rule of poses</h2>
+      <p>
+        Before solving anything backward, feel the forward direction. A
+        joint's world transform is its parent's world transform times its own
+        local rotation — that's the whole theory. Rotate the shoulder and the
+        forearm, hand, and every feather riding them swing along; rotate the
+        wrist and only the hand moves. One small craft decision pays off
+        everywhere: in rest pose our bones are pure translations, world-axis
+        aligned, which means a joint's local x, y, z rotations read as world
+        pitch, yaw, roll. Pose tables stay legible to humans. Drive the chain
+        yourself:
+      </p>
+      <div data-demo="fk"></div>
+      <p>
+        Forward kinematics is honest but backwards from what animation wants.
+        Nobody thinks "set the shoulder to −38°, the elbow to 64°". They
+        think: <em>the wingtip should be there.</em> Going from a desired tip
+        position to the angles that put it there is inverse kinematics, and
+        for a limb with two main segments it needs no iteration at all.
+      </p>
+
+      <h2><span class="kicker">Step 2 · Backward</span>The triangle that solves itself</h2>
+      <p>
+        Fix the shoulder <code>S</code>, pick a target <code>T</code>, and
+        call the upper and lower segment lengths <code>a</code> and
+        <code>b</code>. The moment those are chosen, the elbow has almost
+        nowhere left to be: it must sit at distance <code>a</code> from the
+        shoulder <em>and</em> distance <code>b</code> from the target. Three
+        side lengths — <code>a</code>, <code>b</code>, and
+        <code>d&nbsp;=&nbsp;|T−S|</code> — determine a triangle completely,
+        and the law of cosines hands over its angles:
+      </p>
+      <pre>cos A = (a² + d² − b²) / (2·a·d)</pre>
+      <p>
+        <code>A</code> is the angle at the shoulder between the line to the
+        target and the upper segment. Rotate the shoulder→target direction by
+        <code>A</code>, walk distance <code>a</code>, and you're standing on
+        the elbow. Two details make it robust. First, clamp <code>d</code>
+        into <code>[|a−b|, a+b]</code>: a target beyond reach straightens the
+        chain toward it and waits, instead of producing a NaN. Second, notice
+        the ambiguity — in 2D the two circles intersect twice, and in 3D the
+        elbow can sit anywhere on a whole circle around the shoulder→target
+        axis. Which point you pick is not a math question, it's a style
+        question, and the conventional answer is a <em>pole vector</em>: a
+        direction the elbow would like to point. Birds fold their elbows back
+        and slightly up, so that's our default pole.
+      </p>
+      <div data-demo="lawcos"></div>
+
+      <h2><span class="kicker">Step 3 · On the bird</span>Three bones, two passes, one roll</h2>
+      <p>
+        Our wing has three segments, not two, but the hand doesn't deserve a
+        general solver. Treat it by successive approximation: guess the hand's
+        direction (shoulder toward target), pull the two-bone target back by
+        one hand-length, solve shoulder and elbow, then re-aim the hand from
+        wherever the wrist actually landed and solve once more. Two passes
+        land the tip within a feather's width, every frame, for the price of
+        a few subtractions.
+      </p>
+      <p>
+        Position is only half a wing, though. A wing segment is a
+        <em>blade</em> — it has a flat side that must face somewhere — and a
+        direction alone leaves that roll undefined. So each bone's
+        orientation is built from two vectors: its solved direction plus a
+        normal hint saying where "up" is, orthonormalized into a frame; the
+        rotation between the rest frame and the desired frame is the bone's
+        quaternion, with zero twist left to chance. Spread wide, the hint is
+        straight up; folded against the body it rotates sideways so the wing
+        stacks flat against the flank. On top of that, a twist parameter
+        pitches the leading edge — shared out a quarter to the humerus, more
+        to the forearm, all of it to the hand, because primaries are the
+        propeller blades. Slide the pole and watch the elbow orbit while the
+        tip stays planted:
+      </p>
+      <div data-demo="ikwing"></div>
+      <aside class="note">
+        <span class="note-label">Aside · The wing that folds itself</span>
+        <p>
+          A real bird doesn't manage three joints independently either. The
+          elbow and wrist are coupled by tendons and a sheet of skin called
+          the propatagium along the leading edge, so extending the elbow
+          automatically extends the wrist — the wing unfurls as one motion,
+          like a self-opening umbrella. Our IK gets the same economy a
+          different way: because the solver owns all three joints, one moving
+          target produces exactly that coordinated unfurl.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 4 · The fold</span>One scalar, the whole journey</h2>
+      <p>
+        Now compress the whole behavior into one knob. The folded tip rests
+        against the flank, primaries crossed over the tail base — a point we
+        keep as a constant. The extended tip reaches out at 97% of the chain's
+        total length, level with the shoulder. In between, the tip shouldn't
+        travel a straight line (a chord would drag it through the body), so it
+        rides the sphere around the shoulder: direction slerps from folded to
+        extended while the radius lerps. The elbow, biased backward by the
+        pole, passes through every intermediate Z of a real fold without being
+        told to. <code>f&nbsp;=&nbsp;0</code> is a sleeping bird;
+        <code>f&nbsp;=&nbsp;1</code> is the full 1.6-meter span; the arc below
+        is drawn in blue.
+      </p>
+      <div data-demo="fold"></div>
+
+      <p>
+        The wing now goes anywhere we point it, smoothly, for nanoseconds of
+        math per frame. What it lacks is a reason to move: nothing yet says
+        <em>when</em> the tip should be high or low, swept forward or folded
+        home. That's a clock's job — a strange, lopsided clock that spends
+        more time pushing down than recovering up. <a href="/flap.html">Next
+        post</a> we build the wingbeat, and the targets start dancing.
+      </p>
+    </main>
+    <footer>
+      <p>
+        <a href="https://github.com/ericrius1/stillwater">Source on GitHub</a>
+      </p>
+    </footer>
+    <script type="module" src="/src/wingfold.ts"></script>
+  </body>
+</html>

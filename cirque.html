@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>Carving the Cirque — Stillwater</title>
+    <meta
+      name="description"
+      content="A ring of mountains around a lake basin, shaped from warped ridged noise: gradient noise from an integer hash, the ridge fold, domain warping, and a radial skeleton whose zero crossing is the shoreline."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-cirque"></div>
+      <div class="hero-title">
+        <h1>Carving the Cirque</h1>
+        <p class="subtitle">
+          Fish Hawk finally gets its valley. One pure function of (x, z) carves a
+          glacial bowl, rings it with ridged mountains, and drops the shoreline
+          exactly where the terrain crosses zero — no heightmap, no sculpting, the
+          same mountain every time anyone asks.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        We have a lake that <a href="/skin.html">looks like water</a>, a bird with
+        <a href="/wingfold.html">working wings</a>, and a flight model that can
+        <a href="/updrafts.html">ride invisible rivers of lift</a> — over an
+        infinite, featureless sheet of water. Time to fix that. In the finished
+        game, the valley <em>is</em> the level design: the cirque walls are the
+        boundary of the playable world (mountains, not invisible walls), windward
+        slopes are the elevators, the treeline organizes navigation, and the bowl
+        under the water decides where fish hold. This series builds all of it, and
+        today's post lays the one foundation everything else stands on: a terrain
+        height function.
+      </p>
+      <p>
+        Two decisions before any noise gets made. First, the lake's mean surface
+        stays at world <code>y&nbsp;=&nbsp;0</code> — every series since
+        <a href="/stillwater.html">Glass Dawn</a> has assumed it, and the
+        <a href="/touchgo.html">floating bird</a> already queries it. That makes the
+        shoreline a definition rather than an asset: it falls wherever terrain
+        height crosses zero. Second, the terrain is a <strong>pure function</strong>
+        <code>h(x, z)</code> — no stored heightmap, no files to page in. Ask twice,
+        get the same answer; ask on the CPU for physics or on the GPU for vertices,
+        same answer. That property does a shocking amount of work in the posts
+        ahead, so we guard it jealously from the first line.
+      </p>
+
+      <h2><span class="kicker">Step 1 · Ridged noise</span>Folding randomness into crests</h2>
+      <p>
+        Everything begins with repeatable randomness. We hash each integer lattice
+        point through a few rounds of multiply-and-xor (the murmur3 finalizer), so
+        <code>hash(ix, iy, seed)</code> is statistically random but eternally
+        deterministic. The hash picks a random unit gradient at each corner of the
+        containing cell; dot each gradient with the offset to the sample point; and
+        blend the four results with Perlin's quintic fade
+        <code>t³(6t² − 15t + 10)</code>, chosen because its first <em>and</em>
+        second derivatives vanish at the lattice, so neither value nor curvature
+        betrays where the grid lines are. That's gradient noise: smooth hills in
+        roughly [−1, 1].
+      </p>
+      <p>
+        Smooth hills aren't mountains. Two more moves get us there. First the
+        fractal sum — fBm — stacks octaves, each at double frequency and half
+        amplitude, with the lattice rotated half a radian between octaves so no two
+        share a grid orientation. Then the <strong>ridge fold</strong>: instead of
+        using each octave's value <code>n</code> directly, bend it toward
+      </p>
+      <pre><code>n ← 1 − 2·|n|        <span class="cm">// fold: zero crossings become sharp crests</span></code></pre>
+      <p>
+        The absolute value creases the smooth function along its zero contours, and
+        flipping it puts those creases on top. Since the zero set of gradient noise
+        is a network of meandering lines, the fold turns rolling hills into
+        connected, branching ridgelines — exactly the skeleton real erosion leaves
+        behind. Our <code>ridge</code> parameter blends between plain fBm (0) and a
+        fully folded field (1); the basin uses 0.85. Play with the fold below and
+        watch billows sharpen into crests, then push octaves up and watch detail
+        cascade in.
+      </p>
+      <div data-demo="ridged"></div>
+      <aside class="note">
+        <span class="note-label">Aside · One hash, two processors</span>
+        <p>
+          Every demo on this page displaces its vertices on the GPU, but physics
+          will ask the CPU. The trick that keeps them identical: JavaScript's
+          <code>Math.imul</code> wraps multiplication modulo 2³² exactly like WGSL's
+          <code>u32</code> arithmetic, so the murmur3 hash produces bit-identical
+          output on both processors — same gradient at every lattice point, same
+          mountain to within f32 rounding. The terrain library maintains the height
+          function twice, operation for operation, and the pair must change
+          together. It's the least glamorous code in the project and some of the
+          most important.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · Domain warp</span>No circle survives</h2>
+      <p>
+        Ridged fBm has a tell: faint axis-aligned regularity inherited from the
+        lattice, and a sameness everywhere. The cure is to bend the coordinates
+        before the noise ever sees them. Sample two independent fBm channels
+        <code>u</code> and <code>v</code> at low frequency, and evaluate the
+        mountains at a displaced position:
+      </p>
+      <pre><code>h(x, z) = ridged( x + A·u(x, z),  z + A·v(x, z) )</code></pre>
+      <p>
+        This is domain warping, and it's the difference between procedural-looking
+        and geological-looking. Straight ridges shear into curves, valleys swerve,
+        and — crucially for us — every <em>radial</em> shape we build in the next
+        step gets warped by the same displacement, so the lake won't be a circle
+        and the rim won't be a ring. The basin uses <code>A = 110&nbsp;m</code> of
+        warp at a 640&nbsp;m wavelength. Slide it up from zero and watch the
+        terrain stop remembering its lattice.
+      </p>
+      <div data-demo="warped"></div>
+
+      <h2><span class="kicker">Step 3 · The skeleton</span>A valley is a radial idea</h2>
+      <p>
+        Noise gives texture, not <em>place</em>. The shape of the world — a lake in
+        a bowl, ringed by a crest, draining through a notch — is authored as a
+        radial skeleton built from a handful of smoothstep terms, all functions of
+        the <em>warped</em> distance from the origin <code>r</code>. From the
+        inside out:
+      </p>
+      <pre><code>bowl   = −26 m · (1 − smoothstep(0.45, 1.0, r_bowl))   <span class="cm">// the tarn, deepest off-center</span>
+shore  = clamp(r − 320, −90, 140) · 0.065              <span class="cm">// a beach ramp through y = 0</span>
+rise   = 360 m · smoothstep(320, 1150, r)              <span class="cm">// climb to the crest ring</span>
+settle = −170 m · smoothstep(1150, 2700, r)            <span class="cm">// ease down beyond, stay mountainous</span></code></pre>
+      <p>
+        The beach term deserves a sentence: it's a <em>clamped linear ramp</em>
+        crossing zero at the shore radius with a definite 6.5% grade, so the
+        zero crossing is a crisp line instead of a marshy ambiguity. On top of the
+        skeleton goes the warped ridged noise from Steps 1–2, scaled by 290&nbsp;m
+        and masked by an envelope that is zero near the lake and full beyond
+        700&nbsp;m — mountains grow with distance from the water, never under it.
+        Last, an angular wedge clamps the rim down to a low lip 4&nbsp;m above the
+        lake, with a valley floor descending away downstream: every tarn drains
+        somewhere, and that outlet notch is a landmark you'll navigate by from the
+        air. The scrolly below assembles the whole profile one term at a time.
+      </p>
+      <div data-scrolly="profile"></div>
+      <p>
+        Here is the same composition in three dimensions, with sliders on the
+        authored knobs. Set mountains to zero to see the bare skeleton — it reads
+        as a crater, obviously fake. Bring the ridges back and the authorship
+        disappears into geology.
+      </p>
+      <div data-demo="skeleton"></div>
+      <aside class="note">
+        <span class="note-label">Aside · Cirques and tarns</span>
+        <p>
+          The shape we're carving is real. A <em>cirque</em> is the amphitheater a
+          glacier excavates at its head: ice plucks rock from the wall it leans
+          against (the headwall) and grinds an overdeepened floor below. When the
+          ice retreats, the bowl fills with meltwater — a <em>tarn</em> — often
+          dammed by the moraine ridge the glacier left at its toe. That's why our
+          deepest sounding sits off-center near the steepest wall, and why the lake
+          drains over a low lip rather than through a gorge: we put the bowl's
+          asymmetry and the outlet exactly where the ice would have.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 4 · The shoreline</span>Where the function crosses zero</h2>
+      <p>
+        Now the payoff for keeping water at <code>y&nbsp;=&nbsp;0</code>: we never
+        author a shoreline. The demo below paints every point where
+        <code>|h| ≈ 0</code> gold — that meandering line <em>is</em> the coast,
+        wobbling between roughly 230 and 420&nbsp;m from the origin because the
+        domain warp bent the shore radius before the beach ramp saw it. A
+        gaussian band of fine noise, 110&nbsp;m wide and centered on the shore,
+        roughens the coast at the meter scale so beaches read as gravel rather
+        than CAD. Toggle the water plane on and off: the gold line and the water's
+        edge agree everywhere, because they are the same equation solved two ways.
+      </p>
+      <div data-demo="shoreline"></div>
+
+      <p>
+        One function, fourteen-odd noise evaluations deep, and we have a world:
+        a 0.3&nbsp;km² tarn held 4&nbsp;m above its outlet, ringed by crests that
+        top out around 600&nbsp;m. But look at what the hero is actually drawing —
+        a 3&nbsp;km square at 384² resolution, about 8&nbsp;m between vertices.
+        Fine for a turntable; hopeless for a game where the bird can
+        <a href="/envelope.html">dive to the deck</a> and skim wingtip-close over
+        gravel it needs to see. Uniform grids can't serve both the beach under your
+        talons and the far shore in the same frame. The fix is to spend vertices
+        where the camera is — rings of detail that follow you, kilometers on a
+        fixed budget. That's <a href="/farshore.html">The Far Shore</a>.
+      </p>
+    </main>
+    <footer>
+      <p><a href="https://github.com/ericrius1/stillwater">Source on GitHub</a></p>
+    </footer>
+    <script type="module" src="/src/cirque.ts"></script>
+  </body>
+</html>

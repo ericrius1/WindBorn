@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Treeline — Stillwater</title>
+    <meta
+      name="description"
+      content="Slope- and altitude-driven materials: meadow, scree, snow, and bare rock decided per pixel from two numbers, with noise-dithered edges and a treeline band that the forest will read."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-treeline"></div>
+      <div class="hero-title">
+        <h1>The Treeline</h1>
+        <p class="subtitle">
+          The mountain stops being gray. Every color in this hero — meadow, beach
+          gravel, scree, bare rock, snow — is a rule written on just two numbers:
+          how high the ground is, and how steep. No textures, no painting, no
+          exceptions.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        A real mountainside is a map of its own physics. Snow rests where it's
+        flat enough to stay; rock shows where it's too steep for soil; trees stop
+        at the altitude where summers are too cold to grow wood; meadow fills in
+        what's left. Which means we don't need an artist to color
+        <a href="/cirque.html">the basin</a> — we need the <em>rules</em>, and the
+        terrain will paint itself. That's not just thrift. In Fish Hawk those
+        bands are gameplay legibility: sun-warmed scree is where
+        <a href="/updrafts.html">thermals</a> will live, the meadow ring is where
+        the shore life happens, and the treeline is the most readable altitude
+        line in the valley — a natural altimeter for a game with no HUD. And
+        because the rules are functions, the forest we plant in the
+        <a href="/forest.html">next post</a> can ask the <em>same</em> rules where
+        trees belong and land exactly on the painted band.
+      </p>
+      <p>
+        Everything below runs per pixel in the fragment stage, reading two values
+        the displaced mesh already carries: world height <code>y</code> and the
+        surface normal's vertical component <code>normal.y</code>. That second
+        number is worth a sentence: for ground with gradient <code>∇h</code>, the
+        unit normal's y-component is
+      </p>
+      <pre><code>up = 1 / √(1 + |∇h|²) = cos(slope angle)   <span class="cm">// 1 = flat ground, 0 = vertical wall</span></code></pre>
+      <p>
+        so it's a pure steepness meter, independent of which way the slope faces.
+        <code>up = 0.72</code> is a 44° pitch — remember that number, it comes
+        back when we plant trees.
+      </p>
+
+      <h2><span class="kicker">Step 1 · Altitude</span>The layer cake (a useful lie)</h2>
+      <p>
+        Start with altitude alone, deliberately crude: quantize <code>y</code>
+        into hard 40&nbsp;m bands on a cold-to-warm ramp — lake-blue lowlands,
+        green mid-slopes, gray heights, white crowns. The result reads instantly
+        as a contour map, which is exactly the point: you can <em>see</em> that
+        height alone already organizes the valley into believable zones. You can
+        also see everything wrong with it. The bands are perfect horizontal
+        stripes — cliffs get painted “meadow green” if they happen to sit at
+        meadow height, and every band edge is a contour line a surveyor could
+        sue over. Real mountainsides don't do stripes.
+      </p>
+      <div data-demo="altitude"></div>
+
+      <h2><span class="kicker">Step 2 · Slope</span>The second axis</h2>
+      <p>
+        Now the other number, alone. The demo below ignores altitude entirely and
+        maps steepness to a heat ramp: green where <code>1 − up</code> is small
+        (flat), amber through the hillsides, red where the ground approaches a
+        wall. Look at how much structure one number recovers — the headwall
+        cliffs, the gentle outlet valley, the talus aprons under the crests, the
+        flat bench the lake sits on. Altitude says <em>where on the mountain</em>;
+        slope says <em>what the ground is doing there</em>. Neither is sufficient;
+        together they're nearly the whole story.
+      </p>
+      <div data-demo="slope"></div>
+
+      <h2><span class="kicker">Step 3 · The rules</span>Painting with both hands</h2>
+      <p>
+        The real material is a stack of weighted layers, each weight a smoothstep
+        on altitude, slope, or both, composited bottom-up like geology. In the
+        order they're applied:
+      </p>
+      <pre><code>meadow   base coat, mottled by a broad “moisture” noise field
+forest   3 m → treeline, gentle ground only (up &gt; 0.7)     <span class="cm">// darker floor under the canopy</span>
+beach    a thin gravel strip hugging y = 0
+rock     takes over as up drops below ~0.6, faint strata bands
+scree    mid-steep band (walls shed, aprons catch), above half-treeline
+snow     above the snowline, where up &gt; ~0.6                <span class="cm">// snow can't rest on walls</span>
+silt     below y = 0, darkening with depth</code></pre>
+      <p>
+        Two site-wide constants anchor the stack: the <strong>treeline</strong> at
+        240&nbsp;m above the lake and the <strong>snowline</strong> at 330&nbsp;m.
+        Both are sliders below, and both are exported constants the rest of the
+        game reads — move the treeline here and you've moved it for the forest,
+        the thermals, everything.
+      </p>
+      <p>
+        The remaining trick is the one that makes it look real:
+        <strong>dithering</strong>. Every threshold gets a little fine-grained
+        noise added to its input — the snow test becomes
+        <code>smoothstep(snowline − 28, snowline + 28, y + 34·noise)</code> — so
+        band edges wander tens of meters instead of tracing contours. The same
+        wobble field perturbs the forest edge, the beach width, the rock
+        threshold. Hit “dither on/off” in the demo and watch the layer cake from
+        Step 1 reappear inside the finished material; that toggle is the whole
+        argument for the technique. The “show tree band” button highlights the
+        forest-floor weight in blue — hold that thought, because that exact
+        function is the planting mask next post.
+      </p>
+      <div data-demo="paint"></div>
+      <aside class="note">
+        <span class="note-label">Aside · What a treeline actually is</span>
+        <p>
+          Alpine treelines track summer warmth, not winter cold: across the
+          world's mountains, trees give out roughly where the growing-season air
+          averages 6–7&nbsp;°C, because below that, wood simply can't be built
+          fast enough to matter. That's why treeline elevation falls as you move
+          poleward, and why it's such a crisp line — a few degrees of lapse rate
+          is a few hundred meters of altitude. The straggling, wind-dwarfed trees
+          right at the edge are called <em>krummholz</em>, German for “crooked
+          wood.” Our scatter rules will shrink trees toward the line for exactly
+          that effect.
+        </p>
+      </aside>
+
+      <p>
+        Worth pausing on what we did <em>not</em> do: no texture maps, no UV
+        unwrapping, no splat maps to author or stream. The entire surface of a
+        kilometers-wide valley is a few dozen lines of per-pixel arithmetic on
+        two varyings the mesh was already computing — which means it works
+        unchanged on every ring of <a href="/farshore.html">the clipmap</a>, at
+        every distance, on a mesh whose vertices never stop moving. The
+        <a href="/depths.html">depth-tinted shallows</a> even get their lakebed
+        for free: the silt layer continues under the water because the rules
+        don't know the water is there.
+      </p>
+      <p>
+        The valley has its colors now, but the forest is still paint — a green
+        weight function, not trees. An osprey needs the real thing: a canopy with
+        gaps to read fish through, snags to perch on, groves that cast shade and
+        break the wind. Next post we turn the painted band into a hundred
+        thousand instanced conifers — each one standing exactly on the surface,
+        each one placed by rules you've already met — and publish the perch
+        points the whole rest of the game will land on. That's
+        <a href="/forest.html">The Forest</a>.
+      </p>
+    </main>
+    <footer>
+      <p><a href="https://github.com/ericrius1/stillwater">Source on GitHub</a></p>
+    </footer>
+    <script type="module" src="/src/treeline.ts"></script>
+  </body>
+</html>

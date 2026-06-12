@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Osprey — Stillwater</title>
+    <meta
+      name="description"
+      content="Building Fish Hawk's osprey as a direct mesh: elliptical rings lofted along a spine curve, wings from quad strips and feather planes, a tail fan, talons, and the painted field marks."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-osprey"></div>
+      <div class="hero-title">
+        <h1>The Osprey</h1>
+        <p class="subtitle">
+          Fish Hawk's protagonist, built from formulas you can read: a body
+          lofted from rings, wings from strips and feather planes, and the
+          field marks painted on face by face. No sculpting app, no imported
+          model — a table of numbers becomes a bird.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Fish Hawk is a game about being an osprey, which means the osprey is
+        the one mesh you will stare at for the entire runtime. She perches in
+        the foreground of every screenshot, dives through the center of every
+        splash, and floats in the middle of the photo mode. While
+        <a href="/skin.html">The Mirror</a> builds the lake she hunts over,
+        this series builds her — and everything later in the season (the
+        folding wing, the wingbeat, the dive poses, the water landing) will
+        animate exactly the vertices we place today. So today is about placing
+        them well.
+      </p>
+      <p>
+        The ground rule for this whole project: geometry comes from code, not
+        from a sculpting session we can't reproduce. Every vertex of this bird
+        is the output of a formula with named inputs, which means the bird is
+        <em>tunable</em> — make the beak 2&nbsp;mm longer, re-run, done — and it
+        means you can read this post and rebuild her from scratch. The single
+        source of truth is a parts list: a table of tapered capsules, one row
+        per body segment, each with a pivot, a far end, and two flesh radii.
+        Real proportions throughout — about 1.5&nbsp;kg of bird, 1.6&nbsp;m of
+        wingspan, in meters, +y up. The rows of that table will become joints
+        in the <a href="/wingfold.html">next post</a>; today they tell us how
+        thick the flesh is at every station.
+      </p>
+
+      <h2><span class="kicker">Step 1 · The loft</span>Rings on a wire</h2>
+      <p>
+        The oldest trick in hull-building, and still the best one for bodies:
+        draw the spine as a curve, slide cross-sections along it, and skin
+        them. Our spine is a Catmull-Rom curve through eleven stations, from
+        the under-tail coverts up over the back of the skull to the base of the
+        beak. Each station carries two radii — the body is an ellipse in
+        cross-section, wider than it is tall at the keel — plus an optional
+        vertical offset so the belly can hang below the centerline. A ring
+        vertex is one line of math:
+      </p>
+      <pre>p(θ) = center + x̂·cos(θ)·rx + ŷ·(sin(θ)·ry + yOff)</pre>
+      <p>
+        where <code>x̂</code> is world +x (the bird never rolls her own spine)
+        and <code>ŷ</code> is the spine tangent crossed with <code>x̂</code>,
+        so rings stay perpendicular to the curve without ever twisting.
+        Between stations, both the centers and the radii interpolate smoothly —
+        the same Catmull-Rom basis works on scalars as well as points. Stitch
+        each ring to the next with two triangles per segment, fan the ends
+        closed, and the torso, neck, and head come out of one loop. Drag the
+        sliders below and watch resolution become a budget knob: 26 rings by
+        18 segments is the whole body.
+      </p>
+      <div data-demo="rings"></div>
+      <aside class="note">
+        <span class="note-label">Aside · Why the facets stay</span>
+        <p>
+          After lofting we deliberately un-weld every triangle so each face
+          owns one flat normal and one flat color. Smooth shading would
+          average those normals and make the bird look like a balloon; flat
+          facets read as feathers, hide the low polygon count instead of
+          apologizing for it, and let the painter give every face a tiny
+          brightness jitter — the difference between "brown surface" and
+          "brown plumage" is about six percent of per-face noise.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · The wing</span>Strips around an airfoil</h2>
+      <p>
+        A wing is not a tube, but it is still a loft — just with a different
+        ring. Instead of an ellipse, the cross-section is a thin airfoil: a
+        nose point, three stations across the underside, a trailing edge, and
+        three back across the top. Sweep that eight-point ring along the arm —
+        shoulder to elbow to wrist to tip, straight out of the parts table —
+        and quad strips close it into a surface. The chord shrinks as you go
+        out (28&nbsp;cm of covert at the body, a few centimeters at the tip),
+        and the chord direction always sits perpendicular to the local arm
+        direction, so the planform keeps the crook at the wrist that makes the
+        silhouette.
+      </p>
+      <p>
+        The membrane only carries the leading half of the wing, though. The
+        trailing edge belongs to feathers, and feathers are gloriously cheap:
+        each one is a tapered plane — a quill line and two vane edges, widest
+        mid-feather, rounded at the tip — built as <em>two</em> layers a
+        millimeter apart, because a feather seen from above is dark chocolate
+        and the same feather seen from below is pale cream. Nine primaries fan
+        from the hand, rotating from straight-back to almost
+        along-the-wing-axis so the outermost ones make the slotted fingertips;
+        ten secondaries hang off the forearm in a parallel band; three broad
+        tertials close the gap to the body. They are separate meshes on
+        purpose — in <a href="/flap.html">part three</a> each one gets its own
+        spring and lags the wingbeat individually.
+      </p>
+      <div data-demo="wingstrip"></div>
+
+      <h2><span class="kicker">Step 3 · The details</span>Heads, tails, feet</h2>
+      <p>
+        Everything else on the bird is the same two tools pointed at smaller
+        problems. The beak is a four-station loft whose spine curve dives at
+        the end — the hook comes from the curve, not from any special-case
+        code. The eyes are riders: a faceted yellow iris ball, a black pupil,
+        a white glint, parented to the head at the anchor the table calls
+        <code>EYE_L</code>. The tail is twelve feather planes sharing one
+        pivot at the tail base; fanning them is one rotation per feather, so
+        "spread the tail" is a single scalar from closed bundle to full fan.
+        Legs are little lofts — white feathered trousers, bare blue-gray
+        tarsus, a squat foot — and each of the four toes is a three-station
+        loft of its own, tipped with a black cone of talon, pitched down into
+        whatever the bird is gripping.
+      </p>
+      <div data-demo="details"></div>
+      <aside class="note">
+        <span class="note-label">Aside · The reversible toe</span>
+        <p>
+          Ospreys are one of the few raptors with a reversible outer toe: on a
+          perch they stand three-forward-one-back like any hawk, but at the
+          moment of a strike the outer toe swings around so the foot grips
+          two-and-two, like an owl. Two opposed pairs of talons are a far
+          better cage for a writhing fish — and the soles are covered in
+          spiny scales called spicules for the same reason. In our rig the
+          reversal is one rotation on the outer toe joint, and the strike pose
+          in <a href="/poses.html">part four</a> will throw it automatically.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 4 · The painter</span>Field marks, then the silhouette test</h2>
+      <p>
+        Color goes on during construction, when every vertex still knows
+        where it is: its parameter <code>u</code> along the loft, its angle
+        <code>θ</code> around the ring, its position in the world. The painter
+        is a stack of rules in those coordinates. Torso: dark chocolate above
+        a soft waterline, white below — the smoothstep edge rides slightly
+        higher on the flanks so the white wraps up the sides the way real
+        plumage does. A speckled band across the upper chest (a hash function
+        deciding feather by feather) is the necklace. The head is white with a
+        dark wedge climbing the nape, and the bandit mask is geometry: a band
+        of stripe color around the line segment that runs from the beak gape
+        through the eye toward the neck, applied only on the sides of the
+        head. Underwing: cream, with a dark carpal patch painted by distance
+        to the wrist. And the last quarter of every wing fades to near-black,
+        because an osprey's wingtips are dipped in ink.
+      </p>
+      <p>
+        The test for all of it is the one birders use: kill the detail and
+        check the shape. Hit the backlight button below. White body, long
+        narrow wings cranked into an M, black wrists, barred tail — if a
+        birder couldn't call "osprey!" from the dark shape alone, the mesh
+        isn't done. She can: the silhouette survives with zero field marks,
+        which is exactly what the game needs when the bird is a speck against
+        a bright dawn sky.
+      </p>
+      <div data-demo="silhouette"></div>
+
+      <p>
+        What we have tonight is a statue — a good statue, about nine thousand
+        triangles, cheap enough to draw a dozen of. What it cannot do yet is
+        the thing that makes it an osprey: pull those long wings into a Z
+        against its body, or reach them out to full span between two
+        wingbeats. The parts table already knows everything a skeleton needs —
+        every row has a pivot and a parent. <a href="/wingfold.html">Next
+        post</a>, the rows become joints, the law of cosines becomes a wing,
+        and the statue learns to fold.
+      </p>
+    </main>
+    <footer>
+      <p>
+        <a href="https://github.com/ericrius1/stillwater">Source on GitHub</a>
+      </p>
+    </footer>
+    <script type="module" src="/src/osprey.ts"></script>
+  </body>
+</html>

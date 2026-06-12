@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Lakebed — Stillwater</title>
+    <meta
+      name="description"
+      content="Bathymetry: the terrain continues under the water, and the water knows it. The canonical terrainHeightAt(x, z) query, shore continuity, depth soundings, and ridge lift joining the shared wind field."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-lakebed"></div>
+      <div class="hero-title">
+        <h1>The Lakebed</h1>
+        <p class="subtitle">
+          The basin series ends where the dive will: under the surface. The same
+          height function that raised the mountains keeps going below zero — and
+          one query, terrainHeightAt(x, z), becomes the question every future
+          system asks the world.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Fish Hawk's centerpiece is a dive that doesn't stop at the surface — and
+        nothing below the surface works without a bottom. Fish need depths to
+        hold in and shallows to cruise; the <a href="/depths.html">depth-tinted
+        water</a> needs a distance for light to die over; the fluid simulation
+        coming next series needs a depth term in its wave speed; and a bird that
+        misjudges a dive should meet gravel, not the void. The good news: we
+        already built all of it. <a href="/cirque.html">The basin function</a> was
+        designed from day one to be <em>negative under the lake</em> — the bowl
+        term is just another part of the composition. This post is about taking
+        that seriously: what the bathymetry actually looks like, why continuity
+        at the shoreline matters more than it sounds, and how one function
+        becomes the canonical world query that every later series — fish, splash,
+        sound — will call without ever importing a mesh.
+      </p>
+
+      <h2><span class="kicker">Step 1 · Soundings</span>The shape of the bottom</h2>
+      <p>
+        Surveyors map a lake by running a boat along a bearing and recording
+        depth as they go — a <em>sounding line</em>. We can do the same with a
+        for-loop. The demo below slices the valley through the lake center at any
+        bearing you choose, sampling <code>terrainHeightAt</code> seven hundred
+        times per redraw and shading everything below <code>y = 0</code> as
+        water. The shape it reveals is deliberate: a flat-floored bowl whose
+        main term digs 26&nbsp;m, deepened to its true maximum — around
+        30&nbsp;m — off-center, southwest of the middle, under the steepest
+        wall. The floor
+        carries a few meters of gentle noise relief (masked to fade before it
+        reaches the shore band) so the bottom reads as silt and drift, not glass.
+        Swing the bearing and watch the profile change while the deepest sounding
+        marker chases the hole.
+      </p>
+      <div data-demo="section"></div>
+      <aside class="note">
+        <span class="note-label">Aside · Overdeepening</span>
+        <p>
+          A river can't dig below its own outlet — water has to flow downhill to
+          leave. Glaciers can. Ice hundreds of meters thick plucks and grinds the
+          bed wherever it flows <em>fastest</em>, which is under the thickest ice
+          near the headwall, not at the snout. The result is a basin scooped
+          deeper than its lip: an <em>overdeepened</em> floor that becomes a lake
+          the moment the ice is gone. That's why our deepest sounding hugs the
+          headwall side while the lake spills over a 4&nbsp;m outlet sill — a
+          shape no river could have carved, and the signature of every cirque
+          tarn in every mountain range on Earth.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · Shore continuity</span>One surface, no seam</h2>
+      <p>
+        The most load-bearing property of the bathymetry is the least dramatic:
+        the function doesn't <em>know</em> where the waterline is. The beach ramp
+        from <a href="/cirque.html">part one</a> crosses zero at 6.5% grade and
+        simply keeps going — the gravel you'd land on continues underwater as the
+        gravel a fish cruises over, with the same slope, the same noise, the same
+        normals. Compare that with the common alternative: authoring land and
+        lakebed as separate meshes and hiding the seam under the waterline. Then
+        every system that crosses the boundary — a wading bird, a wave running up
+        the beach, the camera following a dive — has to negotiate two surfaces
+        that almost agree. Ours cross without noticing. The demo below is a
+        close-up of the east shore with the water sheet at 42% opacity; toggle it
+        off and try to find where “beach” becomes “bed.” There is nothing to
+        find.
+      </p>
+      <div data-demo="continuity"></div>
+
+      <h2><span class="kicker">Step 3 · The query</span>terrainHeightAt, canonically</h2>
+      <p>
+        With the surface continuous above and below water, we can promote it to a
+        contract. The terrain library's entire public story is one signature:
+      </p>
+      <pre><code>terrainHeightAt(x, z) → y       <span class="cm">// meters; negative under the lake</span>
+waterDepthAt(x, z) = max(0, −terrainHeightAt(x, z))</code></pre>
+      <p>
+        and a promise: this function is the world. The exact version costs a
+        dozen-plus gradient-noise evaluations, fine for dozens of queries a
+        frame; swarms — wind influences, fish schools, scatter filters — go
+        through a prebuilt bilinear lattice cache that answers in about
+        50&nbsp;ns with the same shape. (The GPU twin from
+        <a href="/farshore.html">the clipmap post</a> makes the same promise to
+        vertices.) The probe below is the contract made tangible: drag anywhere
+        and a plumb line drops from the spot, its readout quoting
+        <code>terrainHeightAt</code> directly. Over land it reports ground
+        height; over water, bed and depth — and the buoy at the top of the line
+        rides <code>waterHeightAt(x, z, t)</code> from the
+        <a href="/touchgo.html">shared water API</a>, so you're watching the two
+        canonical world queries, terrain and water, measure the gap the fish
+        will live in.
+      </p>
+      <div data-demo="probe"></div>
+
+      <h2><span class="kicker">Step 4 · Ridge lift</span>The terrain joins the weather</h2>
+      <p>
+        One more system was waiting on a real terrain function.
+        <a href="/updrafts.html">Invisible Rivers</a> derived ridge lift from the
+        kinematic boundary condition — air can't flow into a hillside, so wind
+        <code>V</code> meeting ground with gradient <code>∇h</code> is forced
+        upward at
+      </p>
+      <pre><code>w = V · ∇h        <span class="cm">// positive windward, negative on the lee</span></code></pre>
+      <p>
+        — but it demonstrated the idea over a stand-in slope. Now the influence
+        reads the basin itself: the gradient comes from the terrain cache by
+        central differences, the lift fades exponentially over a 90&nbsp;m
+        e-folding height above ground, lee-side sink is softened to 45% (no fail
+        states extends to the weather), and the whole thing is clamped at
+        ±7&nbsp;m/s so cliff edges don't become catapults. Registered as an
+        influence on the <a href="/ripples.html">one shared wind field</a>, it
+        means <em>every</em> <code>wind.sample()</code> in the world now knows
+        about the mountains — the flight model, the swaying trees from
+        <a href="/forest.html">last post</a>, eventually the clouds and the sound
+        of the air itself. In the demo, nine hundred tracer particles ride the
+        live field across the valley: warm streaks climb the windward faces, cool
+        ones sink behind the crests. Swing the wind bearing and watch entire
+        mountainsides switch from elevator to trap — that's the soaring economy
+        of the finished game, emerging from a dot product.
+      </p>
+      <div data-demo="ridgelift"></div>
+
+      <p>
+        The Basin is complete. Five posts ago the lake floated in a void; now one
+        deterministic function holds a warped ridged cirque, a clipmap that
+        serves it at every distance, painted altitude bands, a hundred thousand
+        trees with published perches, and a lakebed that the wind, the water, and
+        everything that swims will query by name. Which sets up the flagship.
+        The next series builds the splash — a real fluid simulation living in a
+        moving window around the action — and its very first equations need what
+        we just shipped: waves slow and steepen as <code>√(g·depth)</code>, so
+        the sim's depth term reads <code>waterDepthAt</code> straight from this
+        bathymetry. The water is about to find out about the bottom. That story
+        starts at <a href="/waves.html">Waves as Arithmetic</a>.
+      </p>
+    </main>
+    <footer>
+      <p><a href="https://github.com/ericrius1/stillwater">Source on GitHub</a></p>
+    </footer>
+    <script type="module" src="/src/lakebed.ts"></script>
+  </body>
+</html>

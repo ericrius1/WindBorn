@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>Action Poses — Stillwater</title>
+    <meta
+      name="description"
+      content="Tuck, brake, strike, and float as small tables of targets, blended by critically damped springs and layered over the wingbeat — Fish Hawk's action animation with no clips at all."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-poses"></div>
+      <div class="hero-title">
+        <h1>Action Poses</h1>
+        <p class="subtitle">
+          The dive tuck, the air brake, the feet-first strike, the float. Each
+          is a dozen numbers, not an animation clip — springs do all the
+          easing, so any action flows into any other from wherever the bird
+          happens to be.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Fish Hawk's verbs each have a shape. Dive: wings swept to slivers.
+        Land: everything flared into a parachute. Strike: talons where the
+        eyes were looking. Rest: a folded bird riding the swell. The
+        <a href="/flap.html">gait system</a> handles how the osprey
+        <em>travels</em>; these are the moments she <em>acts</em> — and in a
+        game they arrive on a button press, at any phase of any wingbeat, from
+        any previous state. Hand-authored animation clips fight that brief:
+        a clip has a first frame, and the bird is never conveniently on it.
+        So Fish Hawk's actions aren't clips. They're <em>targets</em>.
+      </p>
+
+      <h2><span class="kicker">Step 1 · The table</span>A pose is a dozen numbers</h2>
+      <p>
+        We already speak a compact pose language without noticing. The wing
+        listens to extension, tip lift, tip sweep, twist, and an elbow pole;
+        the tail has spread and pitch; the body pitches and settles; the neck
+        cranes; the legs are a few joint angles and a toe-spread scalar. A
+        complete action is one value for each — about a dozen numbers. Our
+        repertoire is four rows. <strong>Tuck</strong>: extension 0.30, tips
+        swept 30&nbsp;cm back, tail closed, head stretched toward the water —
+        span costs drag and drag is the enemy. <strong>Brake</strong>:
+        everything becomes an air brake at once — wings thrown forward and
+        high with the leading edge pitched way up, tail fanned flat against
+        the airflow, legs dropping. <strong>Strike</strong>: wings flung high
+        out of the way, feet swung forward to where the eyes point, outer
+        toes already reversing. <strong>Float</strong>: wings folded to
+        nothing, tail held up out of the wet, body settled low. Press the
+        buttons — deliberately unsmoothed, so you see the raw rows:
+      </p>
+      <div data-demo="targets"></div>
+      <p>
+        Notice what authoring looked like for each of these: not a timeline,
+        just nudging numbers until a still photograph appeared. That's the
+        quiet advantage of the target representation — a pose is debuggable
+        the way a material is. If the brake's tail reads weak, there is
+        exactly one number to raise, and it gets stronger in <em>every</em>
+        approach the bird will ever fly, at any speed, from any direction. A
+        library of clips would need re-exporting; a library of rows needs a
+        slider.
+      </p>
+
+      <h2><span class="kicker">Step 2 · The spring</span>The only easing in the game</h2>
+      <p>
+        Snapping is obviously wrong; the question is what "smooth" should
+        mean. Easing curves have the same flaw as clips — they restart from
+        zero and forget your momentum. The physical answer is a damped
+        spring:
+      </p>
+      <pre>x″ = ω²·(target − x) − 2ζω·x′        ω = 2π·freq</pre>
+      <p>
+        Acceleration toward the target, proportional to how far away you are;
+        friction against your velocity, proportional to how fast you're going.
+        Integrate it semi-implicitly (update velocity first, then position —
+        stable at game stiffnesses) and you get an easing that starts from the
+        current value <em>and the current velocity</em>. Nothing ever pops,
+        because nothing ever teleports. The damping ratio ζ is the
+        personality knob: below 1 it overshoots and rings like flesh; at
+        exactly 1 — critical damping — it arrives as fast as possible without
+        overshooting; above 1 it crawls. Hover over the trace and drive it
+        yourself:
+      </p>
+      <div data-demo="springlab"></div>
+
+      <h2><span class="kicker">Step 3 · The blend</span>Springs over the gait</h2>
+      <p>
+        Now wire springs to the table. Each pose gets a weight; pressing a
+        button moves that weight's <em>target</em> to one and the others to
+        zero; springs chase the targets; and the blended pose is the
+        weight-mixed table row applied on top of whatever the gait wanted this
+        frame. The layering rule that makes it musical is a single field in
+        each row: <code>flapGain</code>, how much of the wingbeat survives the
+        pose. The brake keeps 20% of its flap (a flutter as she settles), the
+        tuck and strike keep none, the neutral row keeps it all. Because the
+        weights are spring values rather than booleans, a half-arrived brake
+        interrupted by a strike just redirects mid-flight — there is no blend
+        tree, no transition matrix, only physics refusing to teleport.
+      </p>
+      <p>
+        The update order is worth writing on the wall, because every animation
+        bug for the rest of the project will be a question about it: gait
+        first (what flying wants), poses mixed over it (what the action
+        wants), the stroke's offsets added last and scaled by the blended
+        <code>flapGain</code>, then a single IK solve per wing turns the final
+        target into joints. Springs live only on the weights, one per pose —
+        four scalars of state for the entire action system. The readout below
+        prints them live; soften the spring frequency and you can read the
+        handoff happening in slow motion. Interrupt the bird as rudely as you
+        can:
+      </p>
+      <div data-demo="blend"></div>
+      <aside class="note">
+        <span class="note-label">Aside · The real strike</span>
+        <p>
+          The hunting dive this system exists for is wonderfully specific.
+          An osprey spots a fish from 10–40&nbsp;m up, kites for a moment to
+          line up the refraction error, then folds and drops — steeper and
+          slower than a falcon's stoop, with mid-course corrections all the
+          way down. In the last instant she throws her wings up and back and
+          swings both feet forward <em>past her head</em>, so what enters the
+          water first, at up to 15–30&nbsp;m/s of plunge, is eight opened
+          talons. Photographers call the posture the "osprey star". Our strike
+          row is that star, fifteen numbers pretending to be a photograph.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 4 · The sequence</span>Triggers, not timelines</h2>
+      <p>
+        If poses are targets and springs are the easing, then a whole hunt
+        sequence is just a schedule of trigger conditions: glide until the
+        commitment point, tuck through the drop, brake when the water is two
+        body-lengths away, strike at half a meter. No keyframes anywhere —
+        change the dive's entry height and every transition re-times itself,
+        because each phase begins wherever the previous one physically left
+        the bird. Below, the schedule runs on a scripted path with the water
+        waiting at the bottom; slow the time scale and watch the weights hand
+        the bird from shape to shape:
+      </p>
+      <div data-demo="sequence"></div>
+
+      <p>
+        Every pose in the repertoire now ends a few centimeters above the
+        lake, which is exactly where this series stops being a closed system.
+        The float row assumes something will hold the bird up; the strike
+        assumes something will splash. <a href="/touchgo.html">Next post</a>,
+        the osprey finally touches Stillwater: a flare timed by height, real
+        buoyancy read from the same water function the renderer draws, and the
+        first disturbance events any series has put on the bus.
+      </p>
+    </main>
+    <footer>
+      <p>
+        <a href="https://github.com/ericrius1/stillwater">Source on GitHub</a>
+      </p>
+    </footer>
+    <script type="module" src="/src/poses.ts"></script>
+  </body>
+</html>

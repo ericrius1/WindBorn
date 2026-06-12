@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>Invisible Rivers — Stillwater</title>
+    <meta
+      name="description"
+      content="The shared wind field becomes gameplay: value-noise gusts, ridge lift derived from the terrain boundary condition, thermal columns to circle in, and the vario that makes lift legible."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-updrafts"></div>
+      <div class="hero-title">
+        <h1>Invisible Rivers</h1>
+        <p class="subtitle">
+          Altitude is the currency of Fish Hawk, and flapping is the expensive way to
+          buy it. This post turns the world's one wind field into a landscape of free
+          lift — gusts, ridge updrafts, thermal columns — and makes the invisible
+          legible.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Here's the movement economy of the finished game in one sentence: flapping
+        costs stamina, altitude is stored stamina, and the landscape — read correctly
+        — refills it for free. That loop only works if the air is a <em>place</em>,
+        with geography you can learn. So this post is where the flight model meets the
+        most important architectural decision on this whole site: there is exactly
+        <strong>one wind field</strong>. The same vector function that
+        <a href="/ripples.html">steers the ripples on the lake</a> is the one our
+        bird's <a href="/forces.html">airspeed vector</a> subtracts. When a gust
+        darkens the water below you, your wings feel that same gust, because both
+        systems asked the same question of the same function:
+      </p>
+      <pre><code>wind.sample(x, y, z, t) → (wx, wy, wz)</code></pre>
+      <p>
+        Nothing in this post invents private weather. Ridge lift and thermals are
+        <em>influences</em> — small functions registered onto the shared field that
+        add their contribution wherever they apply. Flight reads the sum. So does the
+        water. So will the grass, the clouds, and the whoosh in your headphones, in
+        seasons to come. One field, one weather, no contradictions for the player to
+        catch.
+      </p>
+
+      <h2><span class="kicker">Step 1 · Gusts</span>The base field breathes</h2>
+      <p>
+        The base field is a steady vector — direction and mean speed — modulated by
+        smooth value noise in space and time. The speed multiplier wanders with a
+        gustiness amplitude, and the direction swims a few degrees with a second,
+        decorrelated noise channel. Sampled along a path, it produces the thing wind
+        actually does: minute-scale lulls and surges that are <em>spatially
+        coherent</em>, so two nearby points gust together but the far shore lags.
+      </p>
+      <p>
+        For the flight model, gusts arrive entirely through airspeed. The model never
+        checks "is it gusty" — a headwind surge simply raises <code>V</code>, and lift
+        rises with <code>V²</code>, so the bird swells upward; a lull drops it. That's
+        the honest mechanism behind the bumpiness of real flight, and it costs us
+        zero extra code. In the demo, the streaks trace the live field over the lake.
+        Drag the sliders and watch the water: ripple direction and amplitude follow,
+        because every figure on this page shares the field — change the weather here
+        and the bird in the hero above feels it.
+      </p>
+      <div data-demo="gusts"></div>
+
+      <h2><span class="kicker">Step 2 · Ridge lift</span>Air can't enter a hill</h2>
+      <p>
+        Now the landscape starts generating lift, and the derivation is one boundary
+        condition. Wind blowing at a slope can't flow <em>through</em> terrain, so
+        near the surface its vertical velocity must match the ground rising beneath
+        it. If the terrain height is <code>h(x, z)</code> and the horizontal wind is
+        <code>u</code>, the air at the surface must climb at:
+      </p>
+      <pre><code>w = u · ∇h        <span class="cm">// wind speed × slope, along the wind</span></code></pre>
+      <p>
+        A 6&nbsp;m/s breeze meeting a 30° slope is forced upward at about
+        3.5&nbsp;m/s — five times our bird's minimum sink. The influence computes the
+        terrain gradient by finite differences, dots it with the steady wind, and
+        fades the result exponentially with height above the ground (we use a
+        25&nbsp;m e-folding band). The same dot product goes negative on the lee
+        side: descending air, the infamous sink that real pilots respect. We clamp
+        lee sink gently — no fail states extends to the weather.
+      </p>
+      <p>
+        The result is the oldest trick in soaring: fly the windward face, parallel to
+        the crest, and the hill flaps for you. The autopilot below is doing exactly
+        that with its effort pinned to zero. Then rotate the wind direction slider and
+        watch the river dry up — same hill, same bird, wrong wind. In the full game,
+        reading <em>which</em> face is windward today is a skill the weather system
+        will reward.
+      </p>
+      <div data-demo="ridge"></div>
+      <aside class="note">
+        <span class="note-label">Aside · The kinematic boundary condition</span>
+        <p>
+          <code>w = u·∇h</code> is the linearized form of a statement fluid dynamicists
+          call the kinematic boundary condition — the full version says the velocity
+          component normal to a surface vanishes at the surface. Real ridge flow adds
+          compression speed-up above the crest and a turbulent rotor behind it; our
+          exponential falloff is the honest minimum that keeps the part a soaring bird
+          exploits. Swallows surfing the updraft along a lake bluff are riding the
+          same equation at a meter's scale.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 3 · Thermals</span>Columns of paid-for sunshine</h2>
+      <p>
+        The second kind of free altitude comes from the sun. Ground that absorbs well
+        — dry scree, dark rock — warms the air touching it until that air is buoyant
+        enough to let go and rise as a column. We model a thermal as a Gaussian core:
+        updraft strongest at the center, falling off with the square of radius, with a
+        vertical profile that ramps up over the first 25&nbsp;m (the air is still
+        gathering itself) and caps out where the rising parcel cools to ambient
+        temperature:
+      </p>
+      <pre><code>w(x, y, z) = W₀ · e^(−r²/R²) · ramp(y) · cap(y)</code></pre>
+      <p>
+        A modest lake-country thermal — <code>W₀ = 3&nbsp;m/s</code>, core radius
+        20&nbsp;m, top at 120&nbsp;m — out-lifts our bird's 0.7&nbsp;m/s sink by a
+        wide margin, but only if you <em>stay in it</em>. And staying in it is a
+        geometry problem we already solved: <a href="/stick.html">the banked
+        turn</a> gives <code>r = V²/(g·tan φ)</code>, so at 9&nbsp;m/s you need about
+        30° of bank to hold a 15&nbsp;m circle inside the core. Tighter bank costs
+        more induced drag exactly as the lift gets stronger toward the center —
+        thermalling is a live optimization problem, which is precisely why it's fun.
+        Watch the trail below corkscrew upward; squeeze the radius slider and watch
+        the bird work harder for less.
+      </p>
+      <div data-demo="thermal"></div>
+
+      <h2><span class="kicker">Step 4 · The vario</span>Making lift legible</h2>
+      <p>
+        Soaring has a perception problem: climbs of a meter per second are nearly
+        invisible from inside the cockpit. Glider pilots solved it with the
+        variometer — an instrument that reads vertical speed and reports it
+        relentlessly. Fish Hawk has no instrument panel, but it still needs a vario;
+        ours will eventually be feel and sound (rising audio pitch in lift is the
+        plan for the audio season). Today we build the signal itself and learn its
+        one design subtlety: smoothing.
+      </p>
+      <p>
+        Raw vertical speed is jittery — every gust and wingbeat spikes it. Smooth it
+        with the same exponential damping the camera uses, and the time constant
+        becomes a personality dial: too fast and the needle is a lie detector having a
+        breakdown; too slow and you've drifted out of the thermal before the needle
+        admits you found it. Around 3–4&nbsp;s⁻¹ the instrument feels like a calm
+        friend with good reflexes. Try both failure modes below — instrument tuning
+        is game feel in miniature.
+      </p>
+      <div data-demo="vario"></div>
+
+      <p>
+        The air is alive now: it gusts, it climbs hills, it boils off warm stone, and
+        a bird that reads it can stay up all day without a wingbeat. Mechanically,
+        the flight model is complete. What remains is the difference between a model
+        that works and a game that sings — response curves, a camera that breathes,
+        the FOV kick, and the telemetry contract that lets every future system listen
+        to the bird. That tuning pass is <a href="/joy.html">The Joy Pass</a>, and
+        it's where Lift sticks the landing.
+      </p>
+    </main>
+    <footer>
+      <p><a href="https://github.com/ericrius1/stillwater">Source on GitHub</a></p>
+    </footer>
+    <script type="module" src="/src/updrafts.ts"></script>
+  </body>
+</html>

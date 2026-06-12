@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>Wind over Water — Stillwater</title>
+    <meta
+      name="description"
+      content="Capillary ripples built from a five-wave spectrum of traveling sines, steered and scaled by one shared wind field — with a CPU twin so the game can float things on what you see."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-ripples"></div>
+      <div class="hero-title">
+        <h1>Wind over Water</h1>
+        <p class="subtitle">
+          A lake is a wind gauge you can read from a mile up. Today the still skin
+          from part one starts moving: five traveling waves, one shared wind field,
+          and a surface the rest of the game can trust.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        In <a href="/skin.html">part one</a> we built the optics of water — the Fresnel
+        ramp, the glitter path — and it already read as a lake. But it read as a lake in
+        a photograph. Fish Hawk is a game about <em>wind</em>: the osprey's whole
+        movement economy will run on ridge lift and thermals, and the same air that
+        holds the bird up drags across the water below it. If the lake doesn't answer
+        the wind, the world is lying. So this post builds the answer: ripples as a sum
+        of traveling waves whose headings and heights come from one shared wind field —
+        the exact object the flight model will read later. One weather system, every
+        subscriber agreeing.
+      </p>
+
+      <h2><span class="kicker">Step 1 · One traveling wave</span>The unit of water motion</h2>
+      <p>
+        Start with the smallest thing that can move like water: a single sinusoid
+        gliding across the plane. Pick a unit direction <code>d</code>, a wavelength
+        <code>λ</code>, an amplitude <code>A</code>, and write the height at position
+        <code>(x, z)</code> and time <code>t</code> as:
+      </p>
+      <pre><code>h = A · sin( k·(d·x) − k·c·t ),    k = 2π / λ</code></pre>
+      <p>
+        <code>k</code> is the spatial frequency; <code>c</code> is the phase speed —
+        how fast crests travel. And here physics hands us a gift: <code>c</code> is not
+        a free parameter. For deep-water surface waves, gravity and surface tension
+        together set the speed of every wavelength:
+      </p>
+      <pre><code>c(λ) = √( gλ/2π  +  2πσ/(ρλ) )</code></pre>
+      <p>
+        The first term is gravity (long waves run faster); the second is surface
+        tension pulling tiny ripples flat (σ ≈ 0.072 N/m for water — <em>very</em>
+        short waves also run fast). Between them sits a slowest wave, around
+        λ ≈ 1.7 cm at 23 cm/s. This is <em>dispersion</em> — different wavelengths
+        travel at different speeds — and it's the reason real water never looks like a
+        marching texture: the pattern itself won't hold still. The demo drives its
+        crest speed straight from this formula; change λ and watch the speed follow.
+        One more detail worth noting: the surface normal is computed from the exact
+        derivative of <code>h</code> — we differentiate the sine by hand instead of
+        finite-differencing it, so lighting stays clean at any zoom.
+      </p>
+
+      <div data-demo="one-wave"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · Why a sine is honest here</span>
+        <p>
+          The full equations of water motion are unfriendly, but linearizing them for
+          small amplitudes — wave height much smaller than wavelength — yields exactly
+          these traveling sinusoids, and crucially, makes them <em>superpose</em>: the
+          surface from several waves is just their sum. A mountain lake is the
+          best-case scenario for that assumption: centimeters of chop on hundreds of
+          meters of fetch. Ocean storm swell breaks the small-amplitude deal and needs
+          sharper crest shapes; our lake never will.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · The chorus</span>A spectrum of five</h2>
+      <p>
+        One sine is hypnotic and fake. Real wind doesn't excite one wavelength; it
+        pours energy into a whole spectrum, long swell to fine capillary dressing. We
+        approximate that spectrum with just five waves, chosen by hand: wavelengths
+        stepping down 11 m → 5.3 m → 2.1 m → 0.9 m → 0.45 m, each shorter wave weaker
+        and angled differently. Because the linearized system superposes, the surface
+        is literally <code>h = Σ hᵢ</code> — five sines added. Scroll through what
+        addition does to the profile:
+      </p>
+
+      <div data-scrolly="wave-sum"></div>
+
+      <p>
+        Five is a tuned budget, not a law: each wave costs a sine in the vertex shader
+        and a cosine in the normal, and five is where I stopped being able to point at
+        the repetition. The table also gets one knob the physics doesn't strictly own —
+        <strong>choppiness</strong>, a tilt that scales wave <code>i</code> of
+        <code>N</code> by <code>chop^(i/(N−1))</code>: above 1 it pushes energy into the
+        short end (gusty, textured), below 1 it calms the dressing and leaves the swell
+        (oily, heavy). The long wave never moves, so the lake's character changes while
+        its scale doesn't:
+      </p>
+
+      <div data-demo="wave-chorus"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · A declared cheat about speed</span>
+        <p>
+          The dispersion formula says an 11 m swell should travel about 4.1 m/s. The
+          table runs it at 1 m/s, on purpose: at our camera distances the true speeds
+          read as frantic, like the lake is fleeing the scene. The relative ordering is
+          preserved — long waves still outrun short ones, so nothing looks reversed —
+          but absolute speeds are tuned for calm. It's the one place this surface
+          knowingly leaves the physics, and it's written down in the wave table's
+          source as a comment so future-me doesn't "fix" it.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 3 · The steering wheel</span>One wind field</h2>
+      <p>
+        Now wire the table to the weather. Stillwater has a single wind object — a
+        vector field <code>wind.sample(x, y, z, t)</code> with a mean direction, a mean
+        speed, and smooth gusts layered on top. The waves take two things from it.
+        <strong>Heading:</strong> each table wave's direction is a fixed offset from the
+        wind direction, fanned across about ±70°, because wind-driven waves travel
+        broadly downwind but never in lockstep. <strong>Height:</strong> every amplitude
+        scales linearly with wind speed — 3.5 cm of base amplitude per m/s — so a dying
+        breeze takes the texture with it, and dead calm is glass. That last property is
+        load-bearing for the finale of this series, and for the game: dawn stillness
+        isn't a separate art asset, it's just <code>wind.speed → 0</code>.
+      </p>
+      <p>
+        In the demo, the floating vane and the water read the same field — the vane
+        samples <code>wind.sample</code> with its gusts, and you can watch the surface
+        breathe slightly as gusts pass through. Spin the direction slider and the whole
+        wave system swings with it:
+      </p>
+
+      <div data-demo="wind-steer"></div>
+
+      <h2><span class="kicker">Step 4 · The float test</span>Two evaluations, one truth</h2>
+      <p>
+        Here's the architectural decision that pays for this entire approach: the wave
+        sum is <em>analytic</em>. It's a closed-form function of <code>(x, z, t)</code>,
+        so we can evaluate it anywhere, on any processor. The GPU evaluates it per
+        vertex and per pixel to draw the surface you see. The CPU evaluates the
+        <em>same five-wave table</em> inside the spine's
+        <code>waterHeightAt(x, z, t)</code> — the site-wide water query that later
+        series will use to land a bird, bob a fish, float feathers. No readback, no
+        sync, no approximation: two transcriptions of one formula, agreeing to the
+        floating-point digit.
+      </p>
+      <p>
+        The demo below is the proof. Each buoy just sets
+        <code>y = waterHeightAt(x, z, t)</code> and tilts to the analytic normal, while
+        the water under it is pure GPU. If the two ever drifted apart you'd see the
+        buoys sink or hover; they sit glued at any wind speed. (One honest detail: the
+        big lake meshes only displace vertices with the three longest waves — the
+        centimeter-scale dressing lives in the normals, below vertex resolution. This
+        demo's patch is small and dense enough to displace all five, which is what
+        makes exact parity visible.)
+      </p>
+
+      <div data-demo="float-parity"></div>
+
+      <h2><span class="kicker">Onward</span>What this unlocks</h2>
+      <p>
+        The skin now answers the weather: glints sparkle and stretch on wind-built
+        normals, calm is glass, and anything the game wants to float can stand on the
+        same function the renderer draws. But our reflections are still a painted sky —
+        stand a tree at the shoreline and the water ignores it. Next we give the lake a
+        real mirror world: a second camera under the surface, a scene rendered upside
+        down, and ripples that smear it honestly.
+      </p>
+    </main>
+    <footer>
+      <p>Stillwater — building Fish Hawk in public, one system at a time.</p>
+    </footer>
+    <script type="module" src="/src/ripples.ts"></script>
+  </body>
+</html>

@@ -8,8 +8,9 @@
 //
 // ζ = 1 is critical damping: the fastest possible approach with zero
 // overshoot. ζ < 1 overshoots and rings (good for flesh and feathers);
-// ζ > 1 crawls. The integrator is semi-implicit Euler, stable for the
-// stiffness range these demos use (≤ ~20 Hz at 60 fps).
+// ζ > 1 crawls. The integrator is semi-implicit Euler; step() substeps
+// internally so that ω·dt stays small, which keeps stiff feather springs
+// stable even across a dropped frame or a tab switch.
 
 export class Spring1D {
   value: number;
@@ -26,8 +27,12 @@ export class Spring1D {
 
   step(target: number, dt: number, freqHz: number, zeta = 1): number {
     const w = 2 * Math.PI * freqHz;
-    this.vel += (w * w * (target - this.value) - 2 * zeta * w * this.vel) * dt;
-    this.value += this.vel * dt;
+    const n = Math.max(1, Math.ceil(dt * freqHz * 6.5)); // ω·h ≤ ~0.97
+    const h = dt / n;
+    for (let i = 0; i < n; i++) {
+      this.vel += (w * w * (target - this.value) - 2 * zeta * w * this.vel) * h;
+      this.value += this.vel * h;
+    }
     return this.value;
   }
 }

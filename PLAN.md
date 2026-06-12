@@ -112,8 +112,7 @@ float, take off. S1+S2+S3 integrated.
 2. `farshore.html` — clipmap/LOD rings for kilometers of terrain in budget.
 3. `treeline.html` — altitude/slope materials: meadow, scree, snow, exposed
    rock; treeline altitude band.
-4. `forest.html` — instanced conifers + scatter (mine old repo's trees/
-   scatter); perch data published.
+4. `forest.html` — instanced conifers + scatter; perch data published.
 5. `lakebed.html` — bathymetry: depth function under the lake, shore
    continuity, `terrainHeightAt(x, z)` exported for everything else
    (ridge-lift influences, fish depth, the shallow-water sim's depth term).
@@ -182,9 +181,8 @@ USER EMPHASIS: dynamic wind audio from bird speed; splash audio from the bus.
    synthesis (noise burst + filtered body + droplet tail) triggered by
    disturbance-bus events, scaled by event energy; rain patter as granular
    rain events.
-3. `echo.html` — the osprey call (two-voice syrinx synthesis, mine old
-   repo's landing.html syrinx); echoes: delay taps timed from distance to
-   the cirque walls.
+3. `echo.html` — the osprey call (two-voice syrinx synthesis); echoes:
+   delay taps timed from distance to the cirque walls.
 4. `score.html` — adaptive music: layers keyed to altitude/hour/weather,
    crossfaded; calm harmonic language.
 5. `blind.html` — finale: fly the lake by ear with the screen faded.

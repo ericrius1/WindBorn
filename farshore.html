@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Far Shore — Stillwater</title>
+    <meta
+      name="description"
+      content="Clipmap LOD: kilometers of terrain inside a fixed vertex budget — nested rings of detail that follow the camera, seams morphed away, and a grid that snaps so the world stands still."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-farshore"></div>
+      <div class="hero-title">
+        <h1>The Far Shore</h1>
+        <p class="subtitle">
+          An osprey sees gravel under its talons and the far rim of the valley in
+          the same glance. This post makes one mesh do both: nested rings of
+          detail that follow the camera, kilometers of terrain on a vertex budget
+          that never grows.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        <a href="/cirque.html">Carving the Cirque</a> left us with a beautiful
+        problem. The terrain is an analytic function — ask <code>h(x, z)</code>
+        anywhere, get the mountain — but a mesh has to <em>sample</em> it, and the
+        sampling rate is a brutal trade. Fish Hawk's bird crosses the whole valley
+        in a minute of gliding and then <a href="/envelope.html">dives</a> to
+        wingtip height over the beach. The same frame has to hold meter-scale
+        gravel in the foreground and ridgelines four kilometers away — and it has
+        to do it at 60&nbsp;fps while <a href="/forces.html">the flight model</a>,
+        the water, and eventually a fluid simulation all bid for the same
+        millisecond. Today's post is pure budget engineering, and it ends with the
+        camera flying to the far shore without the mesh ever getting bigger.
+      </p>
+
+      <h2><span class="kicker">Step 1 · The budget</span>Why uniform grids lose</h2>
+      <p>
+        Put numbers on the pain first. Suppose the bird needs 1.5&nbsp;m cells to
+        make landing approaches read well. A uniform grid at that density covering
+        the valley's ±3.2&nbsp;km is <code>(6400 / 1.5)² ≈ 18&nbsp;million</code>
+        vertices — and every one of them runs our height function, a dozen-plus
+        gradient-noise evaluations, in the vertex shader. Quadrupling the covered
+        area quadruples the cost forever. The demo below holds the vertex count
+        fixed at 37k and lets you stretch the area it covers: small extents look
+        crisp and end at an absurd horizon; large extents reach the rim but turn
+        the beach to mush. One knob, two failures. The readout keeps score of what
+        a uniform 1.5&nbsp;m grid would have cost.
+      </p>
+      <div data-demo="budget"></div>
+      <p>
+        The way out is in the camera's own geometry. Perspective projection scales
+        everything by <code>1/distance</code> — a 1.5&nbsp;m cell 40&nbsp;m away
+        covers the same pixels as a 3&nbsp;m cell 80&nbsp;m away. So a mesh whose
+        cell size <em>doubles with distance from the viewer</em> has roughly
+        constant detail per pixel, everywhere, and its vertex count grows with the
+        logarithm of the covered radius instead of its square. Doubling rings,
+        not uniform grids.
+      </p>
+
+      <h2><span class="kicker">Step 2 · Rings of detail</span>The clipmap</h2>
+      <p>
+        The classic shape of that idea is the <strong>geometry clipmap</strong>: a
+        stack of square levels, all centered on the viewer. Level 0 is a full
+        <code>n×n</code>-cell grid at the finest cell size. Every level above it
+        has the <em>same</em> <code>n×n</code> footprint in a doubled cell size,
+        with the middle <code>n/2 × n/2</code> cells cut out — because the finer
+        level below already covers them. Each level therefore covers twice the
+        radius of the one before, and the whole stack covers
+        <code>2^levels</code> times the base extent on <code>levels ×</code>
+        roughly <code>n²</code> vertices. The hero above runs seven levels of 96
+        cells: ±4.6&nbsp;km of valley on about 55&nbsp;thousand vertices — three
+        hundred times fewer than the uniform grid wanted.
+      </p>
+      <p>
+        Because the terrain is analytic, the rings carry no data. Vertices are
+        dumb lattice points in <em>cell units</em>; the vertex shader multiplies
+        by the level's cell size, adds the shared center, and evaluates
+        <code>terrainHeight(world)</code> from <a href="/cirque.html">last
+        post's</a> GPU twin. There is no heightmap to page in, no streaming, no
+        seams between tiles that were baked at different times. A vertex knows its
+        height wherever it lands. The demo colors each level so you can see the
+        machinery: drag to orbit, and notice the rings chase the glowing marker,
+        not the camera — the focus point is a parameter, which the game will set
+        to the bird.
+      </p>
+      <div data-demo="rings"></div>
+      <aside class="note">
+        <span class="note-label">Aside · Why “clipmap”</span>
+        <p>
+          The name comes from texturing: a mipmap stores a texture at every power
+          of two resolution, and a <em>clip</em>map clips each level to a fixed
+          window around the viewer, because that's all you can ever see of it.
+          Geometry clipmaps apply the same windowing to a terrain lattice. The
+          insight that survives in our version is just the stack of nested,
+          viewer-centered, power-of-two windows — ours never touches a texture,
+          since the “data” is an equation.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 3 · Seams</span>Where two resolutions meet</h2>
+      <p>
+        Every boundary between levels is a lie waiting to show. The fine ring's
+        edge has vertices the coarse ring lacks — T-junctions. A fine edge vertex
+        sitting between two coarse ones samples the true terrain there, but the
+        coarse triangle spanning it draws the straight line between its
+        neighbors. The fine vertex floats above or below that line, and the gap is
+        a pixel-thin crack with daylight (or in the demo below, a hot red
+        detector plane) shining through.
+      </p>
+      <p>
+        The fix is to make the fine level <em>become</em> the coarse one before
+        they touch. Each vertex with an odd lattice index stores the axis toward
+        its even neighbors; near the outer edge of its level it morphs its height
+        toward their average:
+      </p>
+      <pre><code>h = mix(h_fine, (h_even₁ + h_even₂) / 2, m)   <span class="cm">// m: 0 inside → 1 at the boundary</span></code></pre>
+      <p>
+        At <code>m = 1</code> the odd vertex sits exactly on the coarse triangle
+        edge — the two levels agree vertex-for-vertex, by construction. The blend
+        ramps over the outer 30% of each ring, so the resolution change is a
+        gradient you can't point to, not a line you can. (One subtlety: diagonal
+        vertices, odd in both axes, average their two <em>diagonal</em> neighbors,
+        which only works because every quad is split along the same diagonal.)
+        Rasterization can still leave sub-pixel pinholes where the two meshes
+        overlap edge-to-edge, so each level also drops a <em>skirt</em> — a short
+        curtain hanging from its outer edge. Toggle morph and skirts below under
+        grazing light, with the crack detector behind everything: red pinholes are
+        the bug, and you get to turn the fix on yourself.
+      </p>
+      <div data-demo="seams"></div>
+
+      <h2><span class="kicker">Step 4 · Snapping</span>Standing still while moving</h2>
+      <p>
+        One problem left, and it's the sneakiest. If the rings glide continuously
+        with the camera, every vertex continuously <em>resamples</em> the terrain
+        at new (x, z) — and the whole landscape shimmers as each vertex slides
+        along the surface it samples. The mountains appear to crawl. The cure is
+        to move the lattice in quantized hops: the clipmap's center snaps to a
+        multiple of twice the finest cell, so wherever the window lands, its
+        vertices fall on <em>exactly the same world positions</em> as last time.
+        Same positions, same heights — the world stands perfectly still while the
+        window slides over it, and geometry only changes at the rim of each ring,
+        far from where you're looking.
+      </p>
+      <p>
+        The demo glides across the valley in wireframe so you can watch the
+        lattice hop while the ridgelines hold absolutely still. The snap-level
+        slider coarsens the hop: snapping at ring 4's pitch moves the grid rarely
+        but by 48&nbsp;m at once — a visible lurch at the periphery. Snapping at
+        the finest pitch (our default) hops 3&nbsp;m at a time, far below notice.
+      </p>
+      <div data-demo="snap"></div>
+
+      <p>
+        The valley now scales: the same 55k vertices serve a landing flare and a
+        four-kilometer vista, and the budget line in the frame profiler doesn't
+        move when the bird does. But everything we've drawn is bare rock wearing a
+        debug tint. A mountain isn't gray — it's meadow up to where the soil
+        thins, scree where rock sheds, snow where it can rest, and a treeline that
+        draws the most legible contour in the landscape. Painting all of that,
+        per-pixel, from nothing but altitude and slope, is
+        <a href="/treeline.html">The Treeline</a>.
+      </p>
+    </main>
+    <footer>
+      <p><a href="https://github.com/ericrius1/stillwater">Source on GitHub</a></p>
+    </footer>
+    <script type="module" src="/src/farshore.ts"></script>
+  </body>
+</html>

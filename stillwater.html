@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>Glass Dawn — Stillwater</title>
+    <meta
+      name="description"
+      content="The Mirror's finale: every optical system from the series assembled into one first-light lake scene — keyed to the world clock, stilled by dying wind, and wired to the disturbance bus."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-stillwater"></div>
+      <div class="hero-title">
+        <h1>Glass Dawn</h1>
+        <p class="subtitle">
+          Four essays of optics converge on one shot: first light over black glass,
+          mountains doubled to the pixel, and a lake that answers when you touch it.
+          This is the scene Fish Hawk opens on. Tap the water.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Every game I love opens with a shot that teaches you what the game is. Fish
+        Hawk's is this one: the lake at about 6 a.m., wind dead, surface gone to
+        glass, the cirque hanging upside down in the water, and somewhere out in the
+        dark a fish ring spreading — the first thing the osprey, and the player,
+        learns to read. This post builds that shot, end to end, out of the four
+        systems this series derived: the <a href="/skin.html">Fresnel skin</a>, the
+        <a href="/ripples.html">wind-driven ripples</a>, the
+        <a href="/mirrorworld.html">planar mirror</a>, and the
+        <a href="/depths.html">absorbing depths</a>. Nothing new gets invented today
+        except the connections — which, it turns out, is where scenes come from.
+      </p>
+
+      <h2><span class="kicker">Step 1 · The stack</span>One material, four layers</h2>
+      <p>
+        Here is the entire surface material, top to bottom. Vertices lift by the
+        wave-table height (plus any ring packets — more on those below). The fragment
+        rebuilds the analytic normal, asks Fresnel for the mirror weight, samples the
+        planar reflection nudged by that normal, settles the body color from the
+        depths or the deep-water scatter constant, and adds the sun glint:
+      </p>
+      <pre><code>color = mix(body, reflection, F) + glint</code></pre>
+      <p>
+        Same one-liner as part one — every essay since just upgraded one of its
+        inputs. The demo below starts at zero and lets you stack the series back up
+        one layer at a time: flat paint, then the Fresnel ramp, then ripples, then the
+        mirrored world, then the living touches. Watch which single click flips it
+        from "render" to "lake" for you; for me it's the mirror:
+      </p>
+
+      <div data-demo="assembly"></div>
+
+      <h2><span class="kicker">Step 2 · The hour</span>Dawn on the world clock</h2>
+      <p>
+        Stillwater has one clock — a site-wide <code>clock.hour</code> that everything
+        subscribes to, from fish behavior to music, eventually. The water itself never
+        reads it. Instead, the <em>sky</em> does: sun direction and a five-key dawn
+        palette (night, first light, sunrise, morning, day) interpolate from the hour,
+        and the lake inherits all of it through the mirror and the glint, for free.
+        That's the quiet payoff of building reflection honestly in
+        <a href="/mirrorworld.html">part three</a>: light the world and the water
+        lights itself. Scrub the morning:
+      </p>
+
+      <div data-demo="dawn-hour"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · Why a shared clock is a contract</span>
+        <p>
+          The dawn palette here is a hand-keyed placeholder — a real sky model is a
+          whole series of its own. But the <em>interface</em> is permanent: one hour
+          value in, sun vector and colors out. When the full atmosphere lands, this
+          scene re-keys itself without touching a line of water code. Contracts first,
+          fidelity later — it's the only way a one-person project survives its own
+          ambitions.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 3 · The stillness</span>Glass is not an asset</h2>
+      <p>
+        The defining property of the dawn lake is what's missing: wind. Back in
+        <a href="/ripples.html">part two</a> we made every wave amplitude scale
+        linearly with wind speed — 3.5 cm per m/s — which looked like a modeling
+        detail at the time. It was actually this scene. As <code>wind.speed → 0</code>
+        the entire spectrum dies together, normals flatten, the reflection distortion
+        (which reads those normals) sharpens to perfect, and the glitter path
+        collapses toward a single solar point. Glass dawn isn't a special state with
+        its own shader; it's the zero of the function we already had. Run the wind
+        down yourself and watch the mirror focus:
+      </p>
+
+      <div data-demo="glass-wind"></div>
+
+      <h2><span class="kicker">Step 4 · The touch</span>Rings on the disturbance bus</h2>
+      <p>
+        A perfect mirror is a stage with no actors. The world needs to <em>touch</em>
+        the water — fish rising now; later a landing osprey, raindrops, a wingtip. So
+        Stillwater routes every touch through one channel: the disturbance bus. Anything
+        can call <code>disturb({kind, x, z, energy, radius})</code>; anything can
+        listen. The Mirror's listener turns each event into an expanding ring packet,
+        added analytically to the surface like a sixth wave: a narrow Gaussian
+        envelope riding at capillary speed, carrying a short sine, fading by time
+        decay and by <code>1/(1+r)</code> spreading as its energy stretches around a
+        growing circle. Amplitude scales with <code>√energy</code> — energy goes with
+        amplitude squared in a wave, so a 20× bigger splash rings only ~4.5× taller.
+        Ten rings live in a small rotating pool of uniforms; the oldest quietly yields
+        its slot, usually long after it has faded below a pixel.
+      </p>
+      <p>
+        The demo has two writers — your taps (a fish-rise's worth of energy) and an
+        optional rain shower of tiny ones — and <em>two</em> readers: the surface, and
+        an event counter in the readout. That second reader is the point. Next season,
+        a fluid simulation replaces the rings and a splash synthesizer joins in your
+        headphones, all without the writers changing a single call:
+      </p>
+
+      <div data-demo="rise-rings"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · Real rise rings</span>
+        <p>
+          Watch a trout sip a mayfly at dusk and you'll see exactly this structure: a
+          ring a few millimeters tall, crawling outward at well under a meter per
+          second (capillary-gravity waves this short are slow), gone in seconds. For
+          the osprey — and the player — the ring outlives the glimpse of the fish
+          itself. It's a sighting that persists, which is what makes it a game
+          mechanic and not just a graphic.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">The export</span>One lake, many futures</h2>
+      <p>
+        With this post, The Mirror ships its real deliverable: not a picture but a
+        library. The surface you've been poking lives in one place —
+        <code>src/lib/water/</code> — as a <code>LakeSurface</code> built from the
+        wave-table nodes, the optics nodes, an optional planar reflection, an optional
+        analytic bed, and an optional ring pool, with uniforms for clarity, roughness,
+        and distortion. Its CPU twin remains the spine's
+        <code>waterHeightAt(x, z, t)</code>, glued to the rendered vertices by
+        construction. This scene also takes over the site's front door: the landing
+        page hero is now this exact glass dawn, drifting.
+      </p>
+
+      <h2><span class="kicker">Onward</span>What this unlocks</h2>
+      <p>
+        The lake is done waiting. It can be looked at, looked into, lit by the hour,
+        stilled by the weather, and — through the bus — touched. What it's missing is
+        the thing that touches it. Next series we build the bird: an osprey modeled
+        feather by feather as honest mesh geometry, rigged to fold and flap, posed to
+        tuck and strike. When it finally lands on this water,
+        <code>waterHeightAt</code> will hold it up, and the bus will catch the moment
+        its talons break the glass. The mirror is ready for its first crack.
+      </p>
+    </main>
+    <footer>
+      <p>Stillwater — building Fish Hawk in public, one system at a time.</p>
+    </footer>
+    <script type="module" src="/src/stillwater.ts"></script>
+  </body>
+</html>

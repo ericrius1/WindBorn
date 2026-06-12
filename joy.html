@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Joy Pass — Stillwater</title>
+    <meta
+      name="description"
+      content="The game-feel tuning pass: expo response curves, a camera that breathes with the wingbeat, the acceleration FOV kick, and the FlightState telemetry contract every later system reads."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-joy"></div>
+      <div class="hero-title">
+        <h1>The Joy Pass</h1>
+        <p class="subtitle">
+          Same physics, same numbers, completely different bird. The final post of
+          Lift is about the last ten percent — curves, breath, and lens — that
+          separates a model that moves from a creature that flies.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Four posts in, the flight model is mechanically done.
+        <a href="/forces.html">Forces</a> keep it honest,
+        <a href="/stick.html">the stick</a> makes it yours,
+        <a href="/envelope.html">the envelope</a> gives it edges, and
+        <a href="/updrafts.html">the wind</a> gives it a landscape. And yet — flown
+        back to back against the bird I'm imagining for Fish Hawk, it's not there.
+        It moves correctly. It doesn't yet <em>fly</em>. The gap is what this post is
+        for, and the hero above is its thesis: a single button that switches every
+        tuning decision on and off at once. Fly a lap, hit the feel button, fly the
+        same lap. The physics never changes. Everything changes.
+      </p>
+      <p>
+        Game feel has a reputation for being mystical. It isn't — it's a small set of
+        signal-processing decisions applied to inputs and outputs, each one boring
+        alone, transformative together. We'll take them in order: shaping what your
+        hands send in, shaping what your eyes get back, and finally publishing the
+        bird's state so every future system can listen to it.
+      </p>
+
+      <h2><span class="kicker">Step 1 · Input</span>Response curves: precision in the
+      middle</h2>
+      <p>
+        A linear stick spends its precision uniformly, but flying doesn't want it
+        uniformly. Ninety percent of flight is small corrections — a few degrees of
+        bank to recenter a thermal — and the remaining ten percent is full-lock
+        commitment. The classic fix is an <em>expo</em> curve, which trades center
+        sensitivity for edge authority while keeping the endpoints fixed:
+      </p>
+      <pre><code>out = (1 − e) · x  +  e · x³</code></pre>
+      <p>
+        At <code>e = 0.45</code>, half-stick gives about 35% command instead of 50% —
+        the middle of the stick becomes a fine instrument, and the corners still
+        deliver everything. Pair it with the deadzone from
+        <a href="/stick.html">The Stick</a> (re-scaled so there's no jump at its
+        edge), and a worn gamepad stops whispering phantom commands without going
+        numb. The curve below is live — hold a key or a stick and watch your input
+        ride it.
+      </p>
+      <div data-demo="curves"></div>
+
+      <h2><span class="kicker">Step 2 · The camera lives</span>Breathing and the
+      wingbeat</h2>
+      <p>
+        A perfectly still camera reads as a tripod, and tripods don't have heartbeats.
+        The joy pass adds two tiny periodic signals to the chase rig's position. The
+        first is <em>breathing</em>: a few centimeters of slow vertical drift, two
+        incommensurate sine waves so it never quite repeats. It's imperceptible — and
+        immediately perceptible when you remove it. The second is keyed to the bird:
+        a bob synchronized to the <a href="/flap.html">wingbeat clock</a>, scaled by
+        flap effort, so working hard <em>feels</em> like working hard through the
+        camera, and settling into a glide visibly settles the whole frame.
+      </p>
+      <p>
+        Both signals are additive offsets on top of the smoothed rig — they never
+        steer, so they can't fight the player. The sliders below isolate them.
+        Magnitudes are deliberately tiny: feel lives below the threshold of conscious
+        attention, and the moment a player can <em>see</em> the camera acting, it's
+        overtuned.
+      </p>
+      <div data-demo="breathing"></div>
+      <aside class="note">
+        <span class="note-label">Aside · The threshold rule</span>
+        <p>
+          Almost every number in this post was tuned by the same loop: raise it until
+          you notice it, then back off a third. Camera breathing, FOV kick, buffet
+          shake — each is strongest just under the level where the player would name
+          it. The craft isn't in inventing the effects (they're three lines each);
+          it's in the restraint. Joy is mostly subtraction with good taste.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 3 · The lens</span>Kick on acceleration, not
+      speed</h2>
+      <p>
+        <a href="/stick.html">The Stick</a> mapped airspeed to field of view — the
+        steady-state speedometer. The joy pass adds the transient: a kick term driven
+        by <em>acceleration along the flight path</em>, smoothed just enough to not
+        jitter. The distinction matters because feel is about derivatives. Cruising
+        fast is a state; <em>getting</em> fast is an event. When you tuck into a dive
+        the kick widens the lens during the surge — the moment of commitment gets an
+        exclamation mark — then fades as acceleration tops out, handing off to the
+        speed term that holds the wide look while you're fast.
+      </p>
+      <pre><code>fov = 55° + 1.1·max(0, V − 9) + k·max(0, dV/dt)</code></pre>
+      <p>
+        Watch the demo's dive cycle with the kick at zero, then at half a degree per
+        m/s². Same dive, same peak speed — but with the kick, the dive has an
+        <em>entrance</em>. Stall buffet rides the same channel in reverse: the shake
+        that warned you in <a href="/envelope.html">The Envelope</a> is scaled by the
+        same stall blend the physics computes, so the camera trembles exactly when
+        the wing does.
+      </p>
+      <div data-demo="fovkick"></div>
+
+      <h2><span class="kicker">Step 4 · The contract</span>Publish the bird</h2>
+      <p>
+        The last piece of the joy pass isn't for players — it's for the rest of this
+        project. Everything we've built knows things other systems will desperately
+        want: the audio season will synthesize wind noise straight from airspeed and
+        time flap <em>whumps</em> off the wingbeat phase; the post-processing season
+        wants speed for motion blur; the game season wants altitude and position for
+        zones and journal moments. None of them should reach into the flight model's
+        internals. So the model publishes — once per frame, into one flat,
+        documented object:
+      </p>
+      <pre><code>flightState = {
+  airspeed, groundSpeed, verticalSpeed, altitude,
+  bank, alpha, heading,
+  flapping, flapPhase, tuck, stall,
+  onWater, x, y, z,
+}</code></pre>
+      <p>
+        Every field is a plain number (one boolean), so readers can't mutate the bird
+        by accident, and the contract is one import with no plumbing:
+        <code>import { flightState } from "lib/flight"</code> and read it whenever you
+        like. The producer side is a single <code>publishFlightState(body)</code>
+        call from whatever scene currently owns the bird. The telemetry panel below
+        is rendered <em>entirely</em> from that object — it's a working preview of
+        what a wind synthesizer will hear: airspeed for loudness and filter cutoff,
+        <code>flapPhase</code> wrapping for each wingbeat, <code>stall</code> for
+        buffet roar, <code>verticalSpeed</code> for the vario's voice.
+      </p>
+      <div data-demo="telemetry"></div>
+
+      <p>
+        That closes Lift. Season one set out to build a lake that looks like water, a
+        bird that moves like a bird, and flight that feels like flight — and all
+        three now exist as working systems with shared contracts between them:
+        <a href="/stillwater.html">the surface</a> reads the wind, the bird reads the
+        water, and everything that comes next reads the bird. What this unlocks is
+        the first playable milestone — open dawn water, a living sky, and you in it —
+        and beyond that, the season where we finally give this lake something worth
+        diving for: a valley, a real splash, and the world under the surface.
+      </p>
+    </main>
+    <footer>
+      <p><a href="https://github.com/ericrius1/stillwater">Source on GitHub</a></p>
+    </footer>
+    <script type="module" src="/src/joy.ts"></script>
+  </body>
+</html>

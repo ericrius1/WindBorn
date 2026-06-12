@@ -112,7 +112,7 @@ export const POSES: Record<PoseName, PoseTarget> = {
     poleUp: 0.85,
     flapGain: 0.2,
     tailSpread: 1.0,
-    tailPitch: -30,
+    tailPitch: 28,
     bodyPitch: 0.5,
     bodyLift: 0,
     neckPitch: 6,

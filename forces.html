@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>Four Forces — Stillwater</title>
+    <meta
+      name="description"
+      content="Lift, drag, weight, and flap thrust, derived from first principles and integrated per frame on a point-mass osprey — the start of a flight model you can feel."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-forces"></div>
+      <div class="hero-title">
+        <h1>Four Forces</h1>
+        <p class="subtitle">
+          Fish Hawk is a game about flying, which means the flying has to be the best
+          thing in it. This post builds the physical core: four forces on a point-mass
+          bird, integrated every frame, with every constant traceable to a real osprey.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Everything in Fish Hawk happens between takeoff and touchdown. You read the
+        water for fish, you climb for a better view, you trade height for speed and
+        speed for height — the whole game is a conversation with the air. So before we
+        tune a single camera or play a single sound, the air has to push back honestly.
+        We already have a bird — <a href="/osprey.html">a mesh with working wings</a>
+        that <a href="/flap.html">knows how to beat them</a> — and
+        <a href="/skin.html">a lake for it to hunt</a>. What we don't have is a reason
+        for any of it to stay up.
+      </p>
+      <p>
+        Here's the central decision of this series: the flight model is a
+        <strong>point mass</strong>. One position, one velocity, 1.5&nbsp;kg. No rigid
+        body, no torque, no inertia tensor. The bird's <em>orientation</em> is
+        reconstructed afterward from the velocity and the player's bank command — it's
+        presentation, not simulation. This sounds like cheating until you notice what
+        the player actually feels: the trajectory. If the path through the air is
+        right, the bird feels real; if the path is wrong, no amount of rigid-body
+        fidelity will save it. A point mass also can't spin, tumble, or wedge itself
+        into unrecoverable states — which matters in a game with
+        <em>no fail states</em>.
+      </p>
+      <p>
+        Four forces act on that point: <strong>weight</strong> pulls down,
+        <strong>lift</strong> pushes perpendicular to the airflow,
+        <strong>drag</strong> pulls backward along it, and <strong>flap thrust</strong>
+        pushes forward when the bird works. Sum them, divide by mass, integrate.
+        Everything else in this series — stalls, dives, thermals, the dive scream we'll
+        synthesize someday — falls out of these four arrows.
+      </p>
+
+      <h2><span class="kicker">Step 1 · Lift</span>Air pushes back</h2>
+      <p>
+        Start with what moving air is worth. A parcel of air with density
+        <code>ρ ≈ 1.2 kg/m³</code> moving at speed <code>V</code> carries kinetic
+        energy <code>½ρV²</code> per unit volume. That quantity — the
+        <em>dynamic pressure</em> <code>q</code> — is the budget a wing gets to spend,
+        and it grows with the <em>square</em> of speed. Fly twice as fast and the air
+        is worth four times as much. This single quadratic is the engine of almost
+        every flight sensation in the game.
+      </p>
+      <p>
+        A wing of area <code>S</code> converts that budget into a force at some
+        efficiency <code>C_L</code>, the lift coefficient:
+      </p>
+      <pre><code>L = ½ · ρ · V² · S · C_L(α)</code></pre>
+      <p>
+        <code>C_L</code> depends on the <strong>angle of attack</strong> <code>α</code>
+        — the angle between the wing's chord and the oncoming air. Tilt the wing into
+        the flow and it deflects more air downward; Newton's third law sends the
+        reaction up. For small angles the relationship is beautifully linear. Thin
+        airfoil theory gives a slope of <code>2π</code> per radian for an infinite
+        wing; a real, finite wing leaks pressure around its tips, and the correction
+        for a wing of aspect ratio <code>AR</code> is
+        <code>a = 2π / (1 + 2/(e·AR))</code>. Our osprey spans 1.6&nbsp;m with about
+        0.30&nbsp;m² of wing, so <code>AR = b²/S ≈ 8.5</code>, and with span efficiency
+        <code>e ≈ 0.9</code> the slope comes out almost exactly
+        <strong>5.0 per radian</strong>. That one number is the spine of the model.
+      </p>
+      <p>
+        Sanity check before we trust it. Level flight needs <code>L = W = mg ≈
+        14.7&nbsp;N</code>. Solve the lift equation for speed at a comfortable
+        <code>C_L</code> of 0.9: <code>V = √(2W / (ρ·S·C_L)) ≈ 9.5&nbsp;m/s</code>.
+        Real ospreys cruise at almost exactly that. The constants aren't tuned to
+        taste — they're tuned to a bird.
+      </p>
+      <div data-demo="liftcurve"></div>
+      <aside class="note">
+        <span class="note-label">Aside · The bird in the numbers</span>
+        <p>
+          Every constant here is a field measurement. An osprey (<em>Pandion
+          haliaetus</em>) masses about 1.5&nbsp;kg on a 1.6&nbsp;m wingspan — an
+          absurdly large wing for the weight, because it has to climb out of the water
+          carrying a fish. It cruises near 10&nbsp;m/s, dives at 15–30&nbsp;m/s, and
+          hits feet-first with a reversible outer toe that swings backward so two
+          talons grip each side of the fish. The wing area of 0.3&nbsp;m² gives a wing
+          loading around 50&nbsp;N/m² — closer to a glider than to a falcon, which is
+          why the soaring in this game will feel so generous.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · Drag</span>The price of everything</h2>
+      <p>
+        Drag uses the same currency: <code>D = ½ρV²S·C_D</code>. The interesting part
+        is what's inside <code>C_D</code>, because it has two terms with opposite
+        personalities:
+      </p>
+      <pre><code>C_D = C_D0  +  C_L² / (π · e · AR)</code></pre>
+      <p>
+        <code>C_D0 ≈ 0.033</code> is <em>profile drag</em> — the cost of shoving a
+        feathered body through air. It's constant in coefficient terms, so as a force
+        it grows with <code>V²</code>: the tax on speed. The second term is
+        <em>induced drag</em>, the cost of making lift itself. It scales with
+        <code>C_L²</code>, and since slow flight demands high <code>C_L</code>,
+        induced drag is the tax on flying <em>slowly</em>. One tax rises with speed,
+        the other falls — so somewhere in the middle is a best speed where the ratio
+        <code>L/D</code> peaks. For our numbers that's <code>C_L ≈ 0.89</code>, around
+        9.6&nbsp;m/s, giving a best glide ratio of about 13: every meter of altitude
+        buys thirteen meters of distance, at a sink rate near 0.7&nbsp;m/s. Those two
+        numbers — thirteen-to-one, 0.7 down — are the resting heartbeat of the whole
+        game. They're what the bird does when you do nothing.
+      </p>
+      <p>
+        In the demo below, the only control is the angle of attack. Pitch for too
+        shallow an angle and the bird is fast but falls steeply; too steep and it
+        wallows. Find the angle where the glide ratio readout peaks — you're feeling
+        out the bottom of the drag bucket.
+      </p>
+      <div data-demo="glide"></div>
+
+      <h2><span class="kicker">Step 3 · Thrust</span>Flapping is an engine with a power
+      curve</h2>
+      <p>
+        A flapping wing is doing something genuinely complicated — the downstroke tilts
+        the lift vector forward so a slice of it becomes propulsion. For a point mass
+        we keep the net effect and skip the blade physics: flapping applies a thrust
+        force along the flight path. But we don't get to pick a free number, because
+        muscles deliver <em>power</em>, not force, and power is force times speed:
+      </p>
+      <pre><code>T = effort · min(T_max, P_max / V)</code></pre>
+      <p>
+        With <code>P_max ≈ 95&nbsp;W</code> of burst output and a low-speed cap of
+        <code>T_max = 11&nbsp;N</code>, the same effort that blasts the bird off the
+        water barely nudges it in a fast glide — thrust fades as <code>1/V</code>,
+        exactly the breathlessness you want when chasing speed by flapping. Cruising at
+        moderate effort yields a climb rate around 1.5–2&nbsp;m/s, which matches a real
+        bird working its way up; full burst is for escapes and takeoffs, and the
+        stamina system the game adds later will make you pay for it.
+      </p>
+      <div data-demo="flapclimb"></div>
+      <aside class="note">
+        <span class="note-label">Aside · Why not simulate the wingbeat?</span>
+        <p>
+          We could compute lift per wing segment per stroke phase — and the
+          <a href="/flap.html">wingbeat rig</a> could drive it. But a force that
+          oscillates at 3&nbsp;Hz mostly averages out in the trajectory, while costing
+          stability headaches at every frame-rate hiccup. The model applies the
+          <em>average</em> thrust; the <em>visible</em> wingbeat stays in the
+          animation layer, synced through the same wingbeat clock. If they ever feel
+          out of step, that's a bug in presentation, not physics.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 4 · Integration</span>Sum, divide, step</h2>
+      <p>
+        Now the loop. Each frame we sample the bird's <em>airspeed vector</em> —
+        velocity relative to the air, which today equals velocity because the air is
+        still (the <a href="/ripples.html">wind field</a> joins the party two posts
+        from now, and the plumbing is already in place for it). From airspeed we get
+        the forward direction; lift is built perpendicular to it; the four forces sum
+        to an acceleration:
+      </p>
+      <pre><code>F = L·l̂ − D·f̂ + T·f̂ + (0, −mg, 0)
+v ← v + (F/m)·dt        <span class="cm">// velocity first…</span>
+x ← x + v·dt            <span class="cm">// …then position: semi-implicit Euler</span></code></pre>
+      <p>
+        Updating velocity <em>before</em> position — semi-implicit Euler — costs
+        nothing and is dramatically more stable than the naive order for oscillating
+        systems like ours. We also clamp <code>dt</code> and split big frames into
+        substeps of at most 1/90&nbsp;s, so a stuttering tab can't slingshot the bird.
+        The scrolly below assembles the whole force diagram in one picture.
+      </p>
+      <div data-scrolly="fourforces"></div>
+      <p>
+        One more honest detail: the water at <code>y = 0</code> is a floor, not a
+        wall. Sink into it and the bird skims — vertical speed zeroes out, belly drag
+        scrubs the rest, and the contact announces itself on the world's disturbance
+        bus so that anything watching the surface (ripples now, a full splash
+        simulation in a later season) knows exactly where and how hard we touched.
+        A missed approach in Fish Hawk costs you speed and dignity, never progress.
+      </p>
+      <p>
+        Here is everything so far, integrated and flyable. Pitch and flap only — and
+        notice it's already <em>almost</em> a game:
+      </p>
+      <div data-demo="freeflight"></div>
+
+      <p>
+        What's missing is the third dimension of intent. You can climb and dive, but
+        you can't <em>go</em> anywhere — there's no way to turn, and the camera is a
+        disinterested bystander. Both of those are one idea in disguise: tilting the
+        lift vector. <a href="/stick.html">The Stick</a> takes the bank command from
+        your keyboard or gamepad, leans the lift over, and lets the physics turn the
+        bird — then bolts on a chase camera that makes speed legible.
+      </p>
+    </main>
+    <footer>
+      <p><a href="https://github.com/ericrius1/stillwater">Source on GitHub</a></p>
+    </footer>
+    <script type="module" src="/src/forces.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>Seeing the Bottom — Stillwater</title>
+    <meta
+      name="description"
+      content="Beer–Lambert absorption, Snell refraction, and an analytic lakebed: how shallow water shows you sand and stones, and why the deep end fades to blue-black."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-depths"></div>
+      <div class="hero-title">
+        <h1>Seeing the Bottom</h1>
+        <p class="subtitle">
+          The lake has been opaque since part one — a mirror with nothing inside.
+          Today we open it: light that bends at the surface, dies channel by channel
+          on the way down, and comes back up carrying the lakebed with it.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Everything so far has happened <em>at</em> the surface: the
+        <a href="/skin.html">Fresnel skin</a>, the <a href="/ripples.html">wind
+        ripples</a>, the <a href="/mirrorworld.html">mirror world</a>. But Fresnel has
+        been writing a check we haven't cashed. If only 2% of the light reflects when
+        you look straight down, then 98% goes <em>in</em> — hits something, comes back
+        out — and our shader has been waving that away with a flat dark constant. For
+        most of a deep lake, fine. But Fish Hawk's entire hunt happens in the shallows:
+        the osprey reads cruising shadows against sunlit sand, players judge the dive
+        by how the bottom falls away, and the shoreline only looks like a shoreline if
+        you can see it continue underwater. So today the water becomes a participating
+        medium: we follow the transmitted ray down, charge it the toll, and bring back
+        what it saw.
+      </p>
+
+      <h2><span class="kicker">Step 1 · The toll</span>Beer–Lambert absorption</h2>
+      <p>
+        Start with what water does to light that travels through it. Consider a thin
+        slab of thickness <code>Δd</code>: it absorbs a fixed <em>fraction</em> of
+        whatever enters it — twice the photons in, twice absorbed, same percentage.
+        Stack slabs and the survival fractions multiply, and "multiply a fixed factor
+        per unit distance" has exactly one continuous solution, the exponential:
+      </p>
+      <pre><code>T(d) = e^(−a·d)</code></pre>
+      <p>
+        — transmittance <code>T</code> after path length <code>d</code>, with
+        <code>a</code> the absorption coefficient in units of 1/m. The part that makes
+        water <em>water</em>: <code>a</code> is wildly different per color channel. We
+        use <code>(0.42, 0.09, 0.035)</code> for red, green, blue — red dies roughly
+        ten times faster than blue. Nobody painted the deep end of a lake blue-green;
+        it's just the only light still alive after a few meters of round trip. Scroll
+        through the filter:
+      </p>
+
+      <div data-scrolly="absorb"></div>
+
+      <p>
+        In the demo below, the lakebed is a plain sand ramp sliding from 0 to 8 m deep,
+        with contour lines every meter. The surface is nearly flat; everything you see
+        is the exponential at work — warm sand at the shallow end, teal by 2 m, and a
+        bottom that's still <em>there</em> at 8 m but spectrally bankrupt. The clarity
+        slider scales all three coefficients at once, gin-clear to glacial-flour murk:
+      </p>
+
+      <div data-demo="absorb-ramp"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · Where the numbers come from</span>
+        <p>
+          Pure water genuinely absorbs ~650 nm red at about 0.35/m while barely
+          touching blue — that asymmetry is real physics, not art direction. A real
+          lake adds dissolved organics and suspended particles, which absorb and
+          scatter more (and push the hue toward green), so our coefficients run a
+          little hotter than pure water and the leftover glow is folded into a single
+          "scatter color" term rather than simulated. One honest simplification on
+          top: we charge the toll for the eye's path up but not the sun's path down —
+          a constant factor the clarity slider absorbs anyway.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · The bend</span>Refraction finds the bed</h2>
+      <p>
+        Absorption needs a path length, which means we need to know where the
+        transmitted ray actually <em>goes</em>. Light crossing into a slower medium
+        bends toward the normal — Snell's law, <code>sin θ₂ = sin θ₁ / 1.333</code> —
+        and the shader gets this in one intrinsic: <code>refract(view, normal, 1/n)</code>.
+        Crucially, the normal in that expression is the <em>rippled</em> normal from
+        <a href="/ripples.html">part two</a>, so every passing wave re-aims the
+        underwater ray. That's the entire mechanism behind the most water-like thing
+        you'll see today: stones that swim. The bed isn't moving; your line of sight
+        to it is.
+      </p>
+      <p>
+        Then we intersect the bent ray with the lakebed. The bed is analytic — a
+        height function <code>bed(x, z)</code>, sand dunes built from smooth noise —
+        so we solve for the crossing iteratively: guess the path using the depth
+        directly below the entry point, land, re-measure the height error where we
+        landed, correct once. For gentle beds two steps sit within a pixel of the
+        truth, and "gentle" is a contract our lakes keep. The crossing point gives us
+        the albedo to fetch and the path length to charge. Toggle Snell off in the
+        demo and the floor flattens into wallpaper; toggle it back and the geometry
+        starts breathing:
+      </p>
+
+      <div data-demo="refraction-bend"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · The osprey already knows</span>
+        <p>
+          Refraction makes everything underwater look shallower than it is — apparent
+          depth is roughly true depth divided by 1.33 — and it displaces the image of
+          a fish away from the fish itself. Ospreys compensate: they steepen their
+          final approach (a vertical strike has no refraction error to correct) and
+          hit feet-first along the line their dive established. When we build dive
+          scoring later in the project, this offset is a gameplay variable, not a
+          rendering artifact — striking where the fish <em>appears</em> will be the
+          rookie mistake.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 3 · The water column</span>Assembling the shallows</h2>
+      <p>
+        Now the body term — the flat constant we've dragged along since part one —
+        gets its real definition. What comes up from below is the bed's color filtered
+        by the round trip, plus the water's own scattered glow filling in everything
+        the filter removed:
+      </p>
+      <pre><code>body = bedColor · T(path)  +  scatter · (1 − T(path))</code></pre>
+      <p>
+        The two terms trade off automatically. At your feet, <code>T ≈ 1</code>:
+        all bed, no glow — sand and stones in honest color. Out past a few meters of
+        path, <code>T → 0</code>: the bed contribution starves and <code>body</code>
+        converges to exactly the deep-water constant we'd been hardcoding. The old
+        fake was the limit of the new truth all along, which is why nothing else in
+        the material changes: the same <code>mix(body, reflection, F) + glint</code>
+        skin now just has a body worth looking at. And the seams are clean by
+        construction — the bed is an interface (a height function and a color
+        function), so when the terrain series ships real bathymetry, the water reads
+        it through the same two calls. The demo puts it all together on a shoreline:
+      </p>
+
+      <div data-demo="shallows"></div>
+
+      <h2><span class="kicker">Onward</span>What this unlocks</h2>
+      <p>
+        The lake now has an inside. Looking down: sand, stones, depth you can judge
+        with your eyes — the osprey's hunting ground. Looking out: the same mirror as
+        before, because Fresnel decides who wins at every angle and it always favored
+        reflection toward the horizon. Every optical system this series promised is
+        built. What's left is the payoff: putting them all in one scene, at the one
+        hour Fish Hawk opens on — first light, dead calm, mountains doubled in black
+        glass — and wiring the surface to the disturbance bus so the world can
+        finally <em>touch</em> it. That's next, and it's the finale.
+      </p>
+    </main>
+    <footer>
+      <p>Stillwater — building Fish Hawk in public, one system at a time.</p>
+    </footer>
+    <script type="module" src="/src/depths.ts"></script>
+  </body>
+</html>

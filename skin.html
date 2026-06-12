@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Skin of the Lake — Stillwater</title>
+    <meta
+      name="description"
+      content="Fresnel reflectance, roughness, and why water looks like water — the first system of Fish Hawk, derived from one ratio and built live on your GPU."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-skin"></div>
+      <div class="hero-title">
+        <h1>The Skin of the Lake</h1>
+        <p class="subtitle">
+          Fish Hawk begins where the osprey's eyes do: at the surface of the water.
+          Before a single wave moves, the lake has to <em>read</em> as water — and that
+          turns out to be one ratio, evaluated per pixel. Drag the hero to skim it.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        I'm building a game called <strong>Fish Hawk</strong>. You play an osprey on a
+        mountain lake: you soar, you spot fish, you fold your wings and hit the water
+        talons-first. Every system in the game hangs off that lake — the fish telegraph
+        themselves through its surface, the dive ends inside it, the dawn light lives on
+        it. So the lake surface is the first thing I'm building, and this series builds
+        it piece by piece: today the optics of a still surface, then wind ripples, then
+        true reflections, then the view down to the lakebed, and finally the glass-dawn
+        scene the game opens on.
+      </p>
+      <p>
+        Here's the problem with water: it has almost no appearance of its own. A bucket
+        of lake water is faintly tinted nothing. Yet you have never once mistaken a lake
+        for a sheet of blue plastic. Whatever your eye is keying on, it isn't color — and
+        if we can find it, we can put it on a flat polygon plane and your brain will say
+        <em>water</em> before anything in the scene moves.
+      </p>
+
+      <h2><span class="kicker">Step 1 · Two fates for a photon</span>The Fresnel ratio</h2>
+      <p>
+        Light arriving at the surface has exactly two options: bounce off, or bend in.
+        Water is a <em>dielectric</em> — an insulator — so there's no third "absorbed at
+        the surface" option the way there is for metals; the skin itself eats nothing.
+        The split between the two fates is the <strong>Fresnel reflectance</strong>
+        <code>F</code>, and it depends on just two things: the angle you're looking at,
+        and the index of refraction <code>n</code> — how much slower light travels in
+        the medium. For fresh water, <code>n = 1.333</code>.
+      </p>
+      <p>
+        Looking straight down along the surface normal, the reflectance has a closed
+        form you can do in your head:
+      </p>
+      <pre><code>F₀ = ((n − 1) / (n + 1))²  =  (0.333 / 2.333)²  ≈  0.02</code></pre>
+      <p>
+        Two percent. Stare straight down into a calm lake and the surface is barely
+        there — 98% of the light crosses it, which is why you see stones, not sky, at
+        your feet. But tilt the geometry toward a grazing angle and <code>F</code>
+        climbs — slowly at first, then violently — until at the horizon essentially
+        everything reflects. The full angle dependence is given by the Fresnel
+        equations, which fall out of asking that the light's wave fields stay continuous
+        across the boundary. Scroll the diagram and watch the split change:
+      </p>
+
+      <div data-scrolly="fresnel"></div>
+
+      <p>
+        In the shader we don't pay for the exact equations. Schlick noticed the curve is
+        basically a quintic ramp between <code>F₀</code> and 1:
+      </p>
+      <pre><code>F(θ) ≈ F₀ + (1 − F₀) · (1 − cos θ)⁵</code></pre>
+      <p>
+        where <code>θ</code> is the angle between the surface normal and the direction
+        to your eye. One dot product, one <code>pow</code>. The demo below paints
+        <code>F</code> itself as brightness — white means mirror — on a plane and a
+        sphere. Drag the camera low and watch the floor catch fire at the grazing edge;
+        then toggle between Schlick and the exact formula and try to spot the
+        difference:
+      </p>
+
+      <div data-demo="fresnel-paint"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · Why the approximation is safe</span>
+        <p>
+          For water's <code>n = 1.333</code>, Schlick stays within about one percentage
+          point of the exact unpolarized reflectance across the whole angle range — far
+          below anything your eye can register in a moving scene. The exact form needs a
+          Snell solve and two squared ratios per pixel; the quintic needs almost
+          nothing. We keep the exact version around in the library purely for demos like
+          the one above, as a referee.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · A million tiny mirrors</span>Roughness and the glitter path</h2>
+      <p>
+        Fresnel says how much light reflects. Roughness says <em>where it goes</em>. A
+        perfectly flat surface reflects the sun to exactly one point — to see the glint
+        you'd have to stand in precisely the mirror spot. Real water is a carpet of tiny
+        tilted facets, each one a flat mirror at its own angle. A facet tilted by
+        <code>α</code> redirects the sun's image by <code>2α</code>, so the spread of
+        facet slopes turns the single sun-point into a smeared lobe of glints.
+      </p>
+      <p>
+        We model the lobe the cheap, classical way: raise the alignment between the
+        mirror direction and the sun to a power,
+        <code>glint = (R · L)ˢ</code>, where <code>R</code> is the eye ray reflected
+        about the normal and <code>L</code> points at the sun. The exponent <code>s</code>
+        plays the role of inverse roughness; the mapping <code>s = 2/r² − 2</code> sends
+        a roughness <code>r → 0</code> to a near-delta spike and <code>r = 0.5</code> to
+        a wide soft smear. One detail matters for the look: the smear isn't round. Facet
+        tilts move the reflected sun mostly <em>vertically</em> in your view when the sun
+        is low, so the glints stretch into a long road of light running from the sun
+        straight toward your feet — the <strong>glitter path</strong>. We don't program
+        that elongation; it falls out of the geometry on its own, which is a good early
+        sign the model is honest. Lower the sun and roughen the surface:
+      </p>
+
+      <div data-demo="glitter-path"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · The osprey's stake in this</span>
+        <p>
+          The glitter path isn't decoration — in Fish Hawk it's gameplay. A cruising
+          fish tilts the facets above it, and for a frame or two the glint pattern
+          breaks: a flash where no flash belongs. Real ospreys hunt exactly this signal,
+          patrolling with the sun behind them so the glints betray the fish. The game's
+          "spot" verb is, at bottom, this demo with a fish under it.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 3 · Assembling the skin</span>Why it reads as water</h2>
+      <p>
+        Now stack the two ideas on a plane. Each pixel of the surface gets three terms:
+      </p>
+      <p>
+        <strong>Body.</strong> What comes up from below. For now — deep water, no
+        lakebed yet — that's a dark blue-green constant: the color scattering hands back
+        when light wanders a long path through the water column and crawls back out.
+        It's the closest thing water has to "its" color, and it's nearly black.
+      </p>
+      <p>
+        <strong>Reflection.</strong> What bounces. Today the mirror image is just an
+        analytic sky — a graded dome with a sun in it. (Reflecting actual geometry
+        needs a second render of the scene, and that's its own essay.)
+      </p>
+      <p>
+        <strong>Glint.</strong> The roughness lobe from Step 2, pointed at the sun.
+      </p>
+      <p>The skin is one line:</p>
+      <pre><code>color = mix(body, reflection, F) + glint</code></pre>
+      <p>
+        — with <code>F</code> the Schlick ramp doing all the real work. Near your feet,
+        <code>F ≈ 2%</code> and you see the dark body; toward the horizon,
+        <code>F → 1</code> and the lake becomes pure sky. That brightness gradient —
+        dark below you, mirror far away, with the curve's particular knee around 60–70°
+        — is the signature your visual system has logged from every shoreline it has
+        ever seen. Color is negotiable; the gradient is not. The demo starts with the
+        full skin; toggle it to a matte paint with <em>identical waves</em> and watch
+        the material collapse into wobbling plastic:
+      </p>
+
+      <div data-demo="water-skin"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · The two percent that builds the world</span>
+        <p>
+          It's worth pausing on how strange this is: the difference between "plastic"
+          and "lake" is mostly a 2%-to-100% ramp on borrowed light. Water barely shows
+          you itself — it shows you everything else, weighted by angle. That's also why
+          the rest of this series exists: a material that's 98% "everything else" is
+          only as good as the everything else we give it to reflect and transmit.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Onward</span>What this unlocks</h2>
+      <p>
+        We now have a surface that reads as water while standing perfectly still — a
+        skin with honest optics and placeholder surroundings. Everything after this is
+        upgrades to its inputs. Next we give the normals something real to do: wind. The
+        ripples that break the glitter path and texture the reflection are a sum of
+        traveling waves steered by the same wind field that will someday hold the
+        osprey's wings up — one weather system for the whole world. After that, the sky
+        dome gives way to true mirrored geometry, the black body color gives way to a
+        sunlit lakebed, and the pieces close into the dawn scene the game opens on. One
+        ratio down; a lake to go.
+      </p>
+
+    </main>
+    <footer>
+      <p>Stillwater — building Fish Hawk in public, one system at a time.</p>
+    </footer>
+    <script type="module" src="/src/skin.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Envelope — Stillwater</title>
+    <meta
+      name="description"
+      content="Stall behavior that mushes instead of punishing, dive acceleration with honest physics, the flare, and the flight envelope drawn as one picture."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-envelope"></div>
+      <div class="hero-title">
+        <h1>The Envelope</h1>
+        <p class="subtitle">
+          Every flight model has edges; the question is what they feel like. This post
+          shapes the stall into a mush instead of a cliff, derives the dive that powers
+          the game's signature move, and draws the whole flyable region as one chart.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Give a player <a href="/stick.html">a stick</a> and within thirty seconds
+        they'll pull it all the way back, just to see. What happens in that moment
+        defines the personality of the whole game. In most flight sims, the answer is
+        a punishment: a wing drops, the world spins, you're learning about spin
+        recovery when all you wanted was to look at a mountain. Fish Hawk's answer has
+        to be different — there are <em>no fail states</em> on this lake, and the
+        centerpiece of the game is a deliberate plunge straight down at the water.
+        The edges of <a href="/forces.html">the four-force model</a> aren't a place we
+        fence off. They're where the dive lives.
+      </p>
+      <p>
+        Pilots call the set of speeds and angles where a wing flies the
+        <strong>flight envelope</strong>. Today we map ours: the stall at the slow
+        edge, the dive at the fast edge, and the flare — the maneuver that carries you
+        from one to the other a wingspan above the lake.
+      </p>
+
+      <h2><span class="kicker">Step 1 · The stall</span>What the wing does when the air
+      gives up</h2>
+      <p>
+        Back in Four Forces we drew <code>C_L = 5.0·α</code> and admitted it was only
+        the beginning of the story. The linear slope describes <em>attached</em> flow:
+        air bending smoothly around the wing's upper surface. Ask for too much angle —
+        past about 16° for a wing like ours — and the flow can't make the turn
+        anymore. It separates, the upper surface stops contributing, and the wing
+        becomes something closer to a flat plate dragged at an angle, where lift
+        follows <code>≈ 1.1·sin 2α</code>: still some lift, just much less, with a lot
+        more drag.
+      </p>
+      <p>
+        The crucial modeling decision is how to get from one regime to the other.
+        Reality isn't a step function — separation creeps forward from the trailing
+        edge over a few degrees — so we blend with a smoothstep across that range:
+      </p>
+      <pre><code>s = smoothstep(16°, 23°, |α|)        <span class="cm">// 0 attached → 1 separated</span>
+C_L = (1−s) · 5.0·α  +  s · 1.1·sin 2α</code></pre>
+      <p>
+        That blend factor <code>s</code> turns out to be the most reusable number in
+        the post. It scales a drag penalty (separated flow is dirty), it fades the
+        controls (separated wings answer slowly — authority drops by two-thirds at
+        full stall), and later it will drive buffet shake and audio. One scalar,
+        derived from geometry, propagating personality through the whole bird.
+      </p>
+      <div data-demo="stallcurve"></div>
+
+      <h2><span class="kicker">Step 2 · The mush</span>Falling, politely</h2>
+      <p>
+        Now watch what the blended curve does to behavior. Pull past the stall and
+        lift doesn't vanish — it sags. The bird starts sinking, which does something
+        subtle and wonderful: sinking <em>adds a vertical component to the oncoming
+        air</em>, which reduces the effective angle of attack, which moves the wing
+        back toward attachment. The stall partially heals itself. The result is a
+        <strong>mush</strong>: a nose-high, wallowing descent at 2–4&nbsp;m/s with
+        soft controls and a visible loss of crispness. Annoying, recoverable,
+        instructive. Push the nose down for a second, the airspeed returns, the wing
+        reattaches, and you're flying again.
+      </p>
+      <p>
+        We get all of that for free from the curve shape — no scripted "stall state",
+        no animation takeover. The one thing we add is communication: a buffet shake
+        that grows with <code>s</code>, because a real wing drums turbulence into the
+        body before it lets go, and a player should never meet a stall they weren't
+        warned about.
+      </p>
+      <div data-demo="mush"></div>
+      <aside class="note">
+        <span class="note-label">Aside · Why birds barely spin</span>
+        <p>
+          Aircraft spin when one wing stalls before the other and the asymmetry winds
+          the airframe up. Birds almost never do — they feel separation through their
+          feathers and adjust each wing's angle dozens of times a second, and their
+          mass is concentrated in the torso rather than spread along the wings. A
+          point mass can't spin either, so our model is accidentally bird-accurate at
+          its edge. The deep-stall wobble you see is the buffet layer talking, not the
+          physics losing control.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 3 · The dive</span>Buying speed with sky</h2>
+      <p>
+        The other edge of the envelope is where Fish Hawk's money shot lives. An
+        osprey spots a fish from 20–40&nbsp;m up, folds, and drops — hitting the water
+        at 15–30&nbsp;m/s. Where does that speed come from? Pure bookkeeping: trade
+        potential energy for kinetic, <code>v = √(2gh)</code>, and a 40&nbsp;m drop is
+        worth 28&nbsp;m/s if nothing is subtracted. Drag is what subtracts, so diving
+        well means shrinking it.
+      </p>
+      <p>
+        The tuck command does exactly that. Holding it folds the wings (the
+        <a href="/poses.html">pose system</a> already knows the shape), and in the
+        model it cuts wing area by 70% and the drag coefficient roughly in half. Lift
+        collapses too — which is the point: a tucked bird stops flying and starts
+        falling with style. Run the numbers on terminal velocity with the tucked
+        figures and you get well over 100&nbsp;m/s — meaning our bird, like the real
+        one, never gets anywhere near it. Every dive in this game is
+        height-limited, not drag-limited: the lake's 40-meter sky simply doesn't hold
+        more than ~28&nbsp;m/s of speed. The physics quietly enforces the game's
+        scale.
+      </p>
+      <p>
+        Getting <em>out</em> is the flare: release the tuck, wings snap to full area,
+        and suddenly that <code>½ρV²S</code> term is enormous — at 25&nbsp;m/s the
+        wing can pull 3–4&nbsp;g without exotic angles of attack. Watch the
+        <code>n</code> readout (load factor, lift over weight) spike in the pullout
+        below. That number is free game-feel currency: later it will drive wind
+        audio, camera shake, and the splash you make if you misjudge it.
+      </p>
+      <div data-demo="dive"></div>
+
+      <h2><span class="kicker">Step 4 · The picture</span>One chart to hold it all</h2>
+      <p>
+        Put the two edges on one set of axes — airspeed across, angle of attack up —
+        and the envelope appears. The red line at 16° is the stall ceiling. The blue
+        curve is the <em>trim curve</em>: for each speed, the α where lift exactly
+        equals weight (<code>C_L = 2W/ρV²S</code>). Fly slower and the curve climbs
+        toward the stall line; they meet at the minimum level-flight speed, about
+        7.6&nbsp;m/s — below that, level flight is arithmetic­ally impossible. Fast and
+        low-α, down in the right corner, is dive country.
+      </p>
+      <p>
+        The demo flies a scripted circuit — cruise, pull to the stall, mush, recover,
+        tuck, dive, flare — while tracing its position in envelope space. Watching the
+        dot orbit the chart is the best intuition pump I know for what a flight model
+        actually is: not a set of animations, but a territory.
+      </p>
+      <div data-demo="envelopechart"></div>
+
+      <p>
+        The envelope is mapped, but so far the air it's drawn in is dead calm. The
+        next post switches on the atmosphere: one shared wind field with gusts that
+        ruffle the lake, ridge lift where the breeze climbs a slope, and thermal
+        columns you can circle inside — <a href="/updrafts.html">Invisible Rivers</a>,
+        where the landscape starts paying for your altitude.
+      </p>
+    </main>
+    <footer>
+      <p><a href="https://github.com/ericrius1/stillwater">Source on GitHub</a></p>
+    </footer>
+    <script type="module" src="/src/envelope.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>Touch and Go — Stillwater</title>
+    <meta
+      name="description"
+      content="Fish Hawk's osprey meets the lake: a height-triggered flare, buoyancy solved against the shared waterHeightAt, splash and skim events on the disturbance bus, and the takeoff run."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-touchgo"></div>
+      <div class="hero-title">
+        <h1>Touch and Go</h1>
+        <p class="subtitle">
+          The first contact between series: the bird lands on the water, rides
+          the same waves the renderer draws, announces every touch on the
+          disturbance bus, and beats her way back into the air.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Everything in this series so far happened in empty air. The
+        <a href="/osprey.html">mesh</a>, the <a href="/wingfold.html">rig</a>,
+        the <a href="/flap.html">wingbeat</a>, the
+        <a href="/poses.html">poses</a> — a complete bird, hovering over
+        nothing. Meanwhile <a href="/skin.html">The Mirror</a> has been
+        building a lake. Today the two series shake hands, and the handshake
+        is the most important architectural moment in Fish Hawk so far:
+        the bird and the water will meet <em>only</em> through two shared
+        contracts. One function, <code>waterHeightAt(x,&nbsp;z,&nbsp;t)</code>,
+        answers "where is the surface?" One event channel,
+        <code>disturb()</code>, carries "I touched it." Nothing about feathers
+        leaks into the water code; nothing about waves leaks into the bird.
+      </p>
+
+      <h2><span class="kicker">Step 1 · The flare</span>Landing is a scheduled stall</h2>
+      <p>
+        Watch any big bird land on water and the choreography is fixed: a
+        shallow glide, then at some height — committed, irreversible — the
+        whole body converts into an air brake. Wings forward and high with
+        leading edges pitched up, tail fanned and pressed down, feet reaching.
+        Lift spikes, speed collapses, and the bird arrives at the surface
+        moving barely faster than the ripples. We already own that shape: it
+        is the brake pose, so landing is a <em>trigger</em>, not an
+        animation. The controller glides while height-above-water exceeds a
+        flare height, then hands the pose springs a brake request and lets
+        physics bleed the speed. Forward velocity decays exponentially, sink
+        rate eases toward half a meter per second, and the geometry of a glide
+        slope does the rest: flare too high and she stalls and drops in
+        gracelessly; too low and she hits fast. The orange sheet below is the
+        trigger surface — slide it and replay until the touchdown is gentle:
+      </p>
+      <div data-demo="flare"></div>
+
+      <h2><span class="kicker">Step 2 · The float</span>Buoyancy from the same water you can see</h2>
+      <p>
+        The moment of contact swaps the controller from aerodynamics to
+        Archimedes. The honest law — upthrust equals the weight of displaced
+        water — would need the submerged volume of a bird-shaped hull. But
+        notice what that force looks like near equilibrium: floating a little
+        too deep displaces a little more water and pushes up, a little too
+        high pushes down. Linearize it and buoyancy <em>is</em> the damped
+        spring from <a href="/poses.html">last post</a>, pulling the body
+        toward (surface&nbsp;−&nbsp;immersion):
+      </p>
+      <pre>ay = k·(waterHeightAt(x, z, t) − immersion − y) − c·vy</pre>
+      <p>
+        The crucial detail is <em>which</em> surface. The spine's
+        <code>waterHeightAt</code> is the same five-wave sum, with the same
+        wind steering, that the GPU evaluates per-vertex to displace the
+        surface you're looking at — CPU and shader are twin transcriptions of
+        one table (<a href="/ripples.html">Wind over Water</a> built it). So
+        the float doesn't approximately ride the waves, it rides them exactly.
+        The four orange probes below are pinned to the CPU function with no
+        rendering tricks: they stay glued to the GPU surface at any wind. Tilt
+        comes free too — the analytic surface normal leans the bird with each
+        passing swell:
+      </p>
+      <div data-demo="buoy"></div>
+      <aside class="note">
+        <span class="note-label">Aside · A raptor that swims</span>
+        <p>
+          Ospreys are the only raptor that routinely goes <em>into</em> the
+          water — often a meter under on a committed strike. The equipment
+          list reads like marine hardware: dense, oily plumage that sheds
+          water, nostril valves that close on impact, and that famous
+          two-and-two toe grip. Even so, a soaked osprey is a heavy osprey;
+          they float well but linger badly, and a bird that grabs a fish too
+          big to lift will sometimes row ashore with its wings rather than
+          let go. The takeoff run in step four is genuinely hard work.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 3 · The bus</span>Announcing the touch</h2>
+      <p>
+        Here is the part that outlives this post. When the bird hits the
+        water, who needs to know? This season: a ripple-ring effect. Next
+        season: a real fluid simulation that wants momentum injected, a foam
+        layer, a splash synthesizer in your headphones. The wrong answer is
+        for the bird to call each of those systems; the right answer is for
+        the bird to shout into a room. <code>disturb({kind, x, z, energy,
+        radius, vx, vz})</code> publishes the event; anyone can subscribe. The
+        energy scale is the contract's most useful clause — a raindrop is
+        ~0.001, a fish rise ~0.05, a full talons-first strike ~1.0 — so
+        every listener, forever, can scale its response from one number. Our
+        landing emits a <code>splash</code> with energy from impact speed;
+        the float emits soft <code>wake</code> events as it drifts. The rings
+        you've been seeing all post are just one subscriber; the readout
+        below is a second one, listening to the same events. Inject a few
+        yourself:
+      </p>
+      <div data-demo="bus"></div>
+
+      <h2><span class="kicker">Step 4 · The takeoff run</span>Leaving is harder than arriving</h2>
+      <p>
+        A floating osprey can't jump into the air — there's nothing solid to
+        jump from. The escape is a <em>run</em>: near-vertical hover-gait
+        strokes for maximum thrust, body hauled forward, feet slapping the
+        surface stride after stride while speed builds. In the controller
+        that's three lines layered on systems we already have: gait pinned
+        near hover with the flap rate commanded high, forward thrust
+        integrated each frame, and lift that grows with airspeed until it
+        finally exceeds the weight. While the bird stays low, every footfall
+        publishes a <code>skim</code> event with the bird's velocity attached
+        — next season's simulation will stretch those into a dotted wake line,
+        and the audio series will make them patter. Count the skims:
+      </p>
+      <div data-demo="run"></div>
+
+      <p>
+        And with that, New Feathers closes its loop. Five posts ago the
+        osprey was a table of numbers; now she folds, flaps, poses, flares,
+        floats on the shared lake, and climbs back out of it, narrating every
+        contact to whoever subscribes. What she still lacks is freedom — every
+        flight in this series ran on rails I scripted. Giving her real ones —
+        lift and drag and stall, a stick to fly her with, wind you can ride —
+        is a whole series of its own, and it starts at
+        <a href="/forces.html">Four Forces</a>. The bird is ready. Let's teach
+        her physics.
+      </p>
+    </main>
+    <footer>
+      <p>
+        <a href="https://github.com/ericrius1/stillwater">Source on GitHub</a>
+      </p>
+    </footer>
+    <script type="module" src="/src/touchgo.ts"></script>
+  </body>
+</html>

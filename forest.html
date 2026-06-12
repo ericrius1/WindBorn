@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Forest — Stillwater</title>
+    <meta
+      name="description"
+      content="Instanced conifers and scatter by the hundred thousand: one 52-triangle tree, GPU instancing, deterministic placement rules, and the snags that publish perch data for the rest of the game."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-forest"></div>
+      <div class="hero-title">
+        <h1>The Forest</h1>
+        <p class="subtitle">
+          A hundred thousand trees, five draw calls. One tiny conifer is stamped
+          across the valley by deterministic rules — altitude, slope, clumping —
+          and the dead ones matter most: snags publish the perch points an osprey
+          game runs on.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        <a href="/treeline.html">Last post</a> painted a forest-floor band onto
+        the mountainside and promised it was a planting mask. Time to collect.
+        Fish Hawk needs a real canopy, and not for scenery: trees are how the
+        valley gets <em>scale</em> when you're flying (a bare mountainside reads
+        as miniature; a forest with 10-meter trees tells your eye the truth),
+        groves and clearings are the texture you navigate by, and a handful of
+        standing dead trees — snags — are where the whole game loop lands. The
+        osprey eats on a perch, builds its nest on the biggest snag, and launches
+        every hunt from one. So this post has two products: a forest you can see,
+        and a list of perch coordinates the rest of the series will treat as
+        level data.
+      </p>
+      <p>
+        Two constraints shape everything. The frame budget says the forest must
+        cost almost nothing — we'll spend tens of thousands of trees, not tens of
+        thousands of draw calls. And determinism says the forest must be the
+        <em>same</em> forest forever, on every machine, with no stored level
+        file: like <a href="/cirque.html">the terrain itself</a>, every tree
+        position must be a pure function of coordinates and a seed. Learn where
+        the gap in the canopy is, and it's there tomorrow.
+      </p>
+
+      <h2><span class="kicker">Step 1 · One tree</span>Fifty-two triangles of conifer</h2>
+      <p>
+        When something will be drawn a hundred thousand times, its triangle count
+        is the only beauty metric that matters. Our conifer is the archetype with
+        nothing left to remove: a five-sided tapered cylinder for the trunk and
+        three stacked open cones for the canopy, darker at the bottom tier where
+        a real spruce holds its oldest needles — about 52 triangles, colored per
+        vertex so there's no texture to fetch. The geometry is built unit-height
+        (base at <code>y = 0</code>, tip at 1), which buys a clean trick: the
+        instance's scale factor <em>is</em> the tree's height in meters. And
+        because a conifer is rotationally symmetric, instances don't even need a
+        rotation — position and scale tell the whole story. Spin it up close
+        below; it is not a hero asset, and at thirty meters among ten thousand
+        siblings, it absolutely is.
+      </p>
+      <div data-demo="conifer"></div>
+
+      <h2><span class="kicker">Step 2 · A hundred thousand</span>Instancing</h2>
+      <p>
+        The reason forests are cheap in 2026: the expensive unit of GPU work is
+        the draw call — validating state, binding buffers, kicking off a pass —
+        not the triangle. <strong>Instancing</strong> submits one geometry once,
+        plus a buffer of per-instance transform matrices, and the GPU stamps the
+        whole population in a single call. A hundred and fifty thousand of our
+        conifers is under eight million triangles, well inside budget for one
+        draw — drag the slider below from a thousand trees to all of them and
+        watch the frame time readout shrug.
+      </p>
+      <p>
+        The trees aren't statues, either. The material leans each canopy along
+        the wind, with deflection growing as height-squared so tips sway more
+        than trunks (in unit space, which makes tall instances sway
+        proportionally further in meters — exactly right for free). The sway
+        direction and amplitude track the <a href="/ripples.html">one shared wind
+        field</a> every frame, so when a gust darkens the lake, the shore pines
+        lean with it. Per-tree variation costs nothing: a hash of the built-in
+        instance index gives each tree its own sway phase, tint, and brightness
+        — no extra attributes, no uploads.
+      </p>
+      <div data-demo="instancing"></div>
+
+      <h2><span class="kicker">Step 3 · The rules</span>Where trees actually grow</h2>
+      <p>
+        Step 2's forest is a jittered grid on a flat plane — a tree farm. Real
+        placement is ecology, and ecology here is three rejection filters run
+        over a candidate lattice. Every 3&nbsp;m cell across the valley proposes
+        one candidate, jittered inside its cell by the same integer hash that
+        builds <a href="/cirque.html">the terrain</a> — a million candidates,
+        each accepted or rejected by pure arithmetic:
+      </p>
+      <pre><code>altitude  3 m &lt; h &lt; treeline − 30·hash      <span class="cm">// above the wet beach, below a ragged top edge</span>
+slope     normal.y ≥ 0.72                    <span class="cm">// nothing roots past ~44°</span>
+clumping  fbm(x/95, z/95) &lt; threshold        <span class="cm">// groves and clearings, not uniform fuzz</span></code></pre>
+      <p>
+        The altitude ceiling subtracts up to 30&nbsp;m of per-tree hash so the
+        treeline frays naturally instead of ruling a line across the mountain,
+        and trees within the last 70&nbsp;m below the line shrink to barely half
+        height — krummholz, as promised <a href="/treeline.html">last post</a>.
+        The clump filter is a broad noise field with a keep-threshold: where the
+        field runs high, no trees, and a clearing opens. Filters run against a
+        cached bilinear height lattice (a ~50&nbsp;ns query), and only the
+        survivors pay for the exact analytic height, so
+        every trunk sits on the true surface, not an approximation of it. Toggle
+        the rules below and watch each one earn its keep — slope off plants
+        cliffs, altitude off drowns trees, clumping off is uniform fuzz.
+      </p>
+      <div data-demo="scatter"></div>
+      <aside class="note">
+        <span class="note-label">Aside · Determinism as a feature</span>
+        <p>
+          Nothing in the scatter calls <code>Math.random()</code>. Every decision
+          — keep or cull, jitter, height, snag-or-tree — is a hash of the
+          candidate's integer cell coordinates and a seed. That means the forest
+          needs no save file, costs no download, and can be regenerated lazily by
+          any system that wants it: the fish AI can ask which shore is shaded,
+          the audio season can ask where wind hits canopy, and both will agree
+          with the renderer down to the last sapling, because they all ran the
+          same arithmetic.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 4 · Snags</span>Perches are level data</h2>
+      <p>
+        Now the payoff for the game. A small fraction of shoreline trees —
+        about a third of a percent, hash-decided like everything else — die
+        standing and become <strong>snags</strong>: bare weathered spars with a
+        few stub branches, 15% taller than their living neighbors. Each snag's
+        geometry carries metadata: the spar top and every branch tip are recorded
+        as offsets in unit-snag space, so scaling and rotating an instance also
+        places its <em>perch points</em> in the world. The library publishes the
+        full list — every perch in the valley with a position, a kind, and a
+        facing — plus one hand-picked landmark: THE nest snag, a grand dead pine
+        on the north-shore promontory, top spar facing the open water. The
+        <a href="/touchgo.html">landing controller</a> gets targets, the future
+        nest post gets its home, and the hunt gets launch points, all from data
+        that was free once the geometry existed.
+      </p>
+      <div data-demo="perches"></div>
+      <aside class="note">
+        <span class="note-label">Aside · Real ospreys love dead trees</span>
+        <p>
+          The snag bias is ornithology, not convenience. Ospreys overwhelmingly
+          nest and perch on dead-topped trees near water: a live conifer's crown
+          is too dense to land a 1.6&nbsp;m wingspan in, while a snag offers
+          clear approach lines, a commanding view of the water, and bare wood
+          for a nest that can grow to two meters across after years of additions.
+          Where snags are scarce, ospreys famously settle for utility poles and
+          channel markers — anything dead, tall, and near fish.
+        </p>
+      </aside>
+
+      <p>
+        The hero scene up top is the whole system assembled — the full
+        deterministic forest, snags included, plus hash-scattered boulders on the
+        talus and grass tufts in the shore meadow, five instanced draw calls in
+        total, every population swaying to the one wind. The valley finally looks
+        inhabited. One post remains in this series, and it's underwater: the lake
+        is still a flat blue sheet with no bottom. Next we follow the terrain
+        function below <code>y = 0</code> — bathymetry, shore continuity, the
+        canonical <code>terrainHeightAt</code> query every future system calls,
+        and the moment the mountains start pushing the wind around. That's
+        <a href="/lakebed.html">The Lakebed</a>.
+      </p>
+    </main>
+    <footer>
+      <p><a href="https://github.com/ericrius1/stillwater">Source on GitHub</a></p>
+    </footer>
+    <script type="module" src="/src/forest.ts"></script>
+  </body>
+</html>

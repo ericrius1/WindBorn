@@ -1,12 +1,15 @@
-// The wing as a mechanism. The capsule table gives three segments per side —
+// The wing as a mechanism. The segment table gives three bones per side —
 // humerus, forearm, hand — and this module turns "wingtip, be there" into
 // joint rotations: a two-bone solve for shoulder and elbow, the hand laid
 // along the remaining reach with its own sweep, and every blade rolled to
 // face where the air will be. The fold, the M-shaped glide, the wingbeat,
 // and every action pose are all just different places to put the target.
+//
+// Rest pose is the extended wing (that's the shape the mesh was lofted in),
+// so f = 1 is nearly home and the fold is the far journey.
 
 import * as THREE from "three/webgpu";
-import { OSPREY_BONES, BONE_INDEX, type OspreyBone } from "./skeleton";
+import { OSPREY_BONES, BONE_INDEX, FOLDED_TIP_L, type OspreyBone } from "./skeleton";
 import { solveTwoBone, quatFromFrames, makeTwoBoneResult, type TwoBoneResult } from "./ik";
 import type { OspreyRig } from "./rig";
 
@@ -14,7 +17,7 @@ export interface WingSide {
   sign: 1 | -1; // +1 = her left (+x), −1 = her right
   shoulder: THREE.Vector3;
   restDir: { hum: THREE.Vector3; fore: THREE.Vector3; hand: THREE.Vector3 };
-  restNormal: THREE.Vector3; // the blade's flat axis at rest (the squash axis)
+  restNormal: THREE.Vector3; // the blade faces up at rest
   len: { hum: number; fore: number; hand: number };
   names: { hum: string; fore: string; hand: string };
 }
@@ -35,7 +38,7 @@ function makeSide(suffix: "L" | "R"): WingSide {
     sign,
     shoulder: new THREE.Vector3(...hum.head),
     restDir: { hum: boneDir(hum), fore: boneDir(fore), hand: boneDir(hand) },
-    restNormal: new THREE.Vector3(sign, 0, 0),
+    restNormal: new THREE.Vector3(0, 1, 0),
     len: { hum: boneLen(hum), fore: boneLen(fore), hand: boneLen(hand) },
     names: { hum: "humerus" + suffix, fore: "forearm" + suffix, hand: "hand" + suffix },
   };
@@ -102,8 +105,8 @@ export function applyWingTip(
     if (handDir.lengthSq() < 1e-8) handDir.copy(sTwo.lowerDir);
   }
 
-  // blade roll: folded against the body the normal points sideways; spread,
-  // it faces up. Blend by how far laterally the wing actually got, then
+  // blade roll: spread wide, the vane faces up; folded against the body it
+  // turns sideways. Blend by how far laterally the wing actually got, then
   // twist about each bone's own axis — the hand carries the most (primaries
   // are the propeller blades).
   const spread = Math.min(1, Math.abs(target.x - shoulder.x) / (wingReach(side) * 0.8));
@@ -146,14 +149,13 @@ const extendedTip = new THREE.Vector3();
 const arcTip = new THREE.Vector3();
 
 // The unfold: one scalar from sleeping silhouette to full span. f = 0 puts
-// the tip back at its rest-pose position (the folded Z part 1 sculpted);
+// the tip against the flank, primaries crossed over the tail (FOLDED_TIP);
 // f = 1 reaches it out level with the shoulder at ~97% of full extension.
 // In between the tip rides an arc on the shoulder's sphere and the elbow,
 // biased backward by the pole, passes through every fold the real wing
 // makes. `sweep` slides the extended tip fore (+) or aft (−), in meters.
 export function unfoldTarget(side: WingSide, f: number, sweep = 0, out = new THREE.Vector3()): THREE.Vector3 {
-  const hand = OSPREY_BONES[BONE_INDEX.get(side.names.hand)!];
-  foldedTip.set(...hand.tail);
+  foldedTip.set(side.sign * FOLDED_TIP_L[0], FOLDED_TIP_L[1], FOLDED_TIP_L[2]);
   const reach = wingReach(side);
   extendedTip
     .copy(side.shoulder)
@@ -192,12 +194,4 @@ export function tipFromParams(
   const lateral = Math.sqrt(Math.max(0.05, ext * ext - (lift / reach) ** 2)) * reach;
   out.set(side.shoulder.x + side.sign * lateral, side.shoulder.y + lift, side.shoulder.z + sweep);
   return out;
-}
-
-// Tail fan: the one capsule spreads by scaling sideways along its bone — the
-// skinned vertices ride the bone's scale just like they ride its rotation.
-export function setTail(rig: OspreyRig, spread01: number, pitchDeg: number, yawDeg: number): void {
-  const tail = rig.bone("tailFan");
-  tail.scale.set(THREE.MathUtils.lerp(1, 2.6, spread01), 1, 1);
-  tail.rotation.set((pitchDeg * Math.PI) / 180, (yawDeg * Math.PI) / 180, 0);
 }

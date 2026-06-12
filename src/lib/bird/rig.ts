@@ -1,55 +1,14 @@
-// The capsule table's second job: a skeleton. Every row becomes a joint — a
+// The segment table's second job: a skeleton. Every row becomes a joint — a
 // THREE.Bone holding one rotation — chained by the table's parent column.
 // Forward kinematics is the chain rule of poses: a joint's world matrix is
 // its parent's world matrix times its own little translation and rotation,
 // and the skin matrix that moves vertices is world × inverse(rest world):
 // "undo where the bone was born, apply where it is now". The weights that
-// decide *which* vertices each bone moves come from the same capsules that
-// shaped the field, asked a different question.
+// decide *which* vertices each bone moves were written down at loft time —
+// every ring knows which joints it belongs to, because we placed it there.
 
 import * as THREE from "three/webgpu";
-import { OSPREY_BONES, BONE_INDEX, boneDistance } from "./skeleton";
-
-export const WEIGHT_POWER_DEFAULT = 2.6;
-
-// Skin weights by proximity: a vertex is influenced by the capsules it lives
-// near, with closeness sharpened by a power. Each vertex keeps its best four
-// influences, normalized to sum to one, because the GPU eats vec4s.
-export function computeSkinWeights(
-  positions: Float32Array,
-  power: number,
-): { skinIndex: Uint16Array; skinWeight: Float32Array } {
-  const nVerts = positions.length / 3;
-  const skinIndex = new Uint16Array(nVerts * 4);
-  const skinWeight = new Float32Array(nVerts * 4);
-  const nBones = OSPREY_BONES.length;
-  const dist = new Float32Array(nBones);
-  const eps = 0.008; // softens 1/d at the surface; also the "touching" scale
-
-  for (let v = 0; v < nVerts; v++) {
-    const x = positions[v * 3], y = positions[v * 3 + 1], z = positions[v * 3 + 2];
-    for (let j = 0; j < nBones; j++) dist[j] = Math.max(0, boneDistance(OSPREY_BONES[j], x, y, z));
-    // top four bones by closeness (insertion into four slots)
-    let i0 = -1, i1 = -1, i2 = -1, i3 = -1;
-    for (let j = 0; j < nBones; j++) {
-      const d = dist[j];
-      if (i0 < 0 || d < dist[i0]) { i3 = i2; i2 = i1; i1 = i0; i0 = j; }
-      else if (i1 < 0 || d < dist[i1]) { i3 = i2; i2 = i1; i1 = j; }
-      else if (i2 < 0 || d < dist[i2]) { i3 = i2; i2 = j; }
-      else if (i3 < 0 || d < dist[i3]) { i3 = j; }
-    }
-    const picks = [i0, i1, i2, i3];
-    let sum = 0;
-    for (let k = 0; k < 4; k++) {
-      const w = Math.pow(1 / (dist[picks[k]] + eps), power);
-      skinIndex[v * 4 + k] = picks[k];
-      skinWeight[v * 4 + k] = w;
-      sum += w;
-    }
-    for (let k = 0; k < 4; k++) skinWeight[v * 4 + k] /= sum;
-  }
-  return { skinIndex, skinWeight };
-}
+import { OSPREY_BONES, BONE_INDEX } from "./skeleton";
 
 // The runtime skeleton: one THREE.Bone per table row. Rest pose is pure
 // translation (each bone sits at its head, world-aligned), so the bind
@@ -119,25 +78,9 @@ export function createOspreyRig(): OspreyRig {
   };
 }
 
-// Bind a geometry (with skin attributes) to a fresh rig. The SkinnedMesh is
-// the GPU side of the bargain: for every vertex it computes Σ wᵢ · Mᵢ · v
-// with the four weights we stored — linear blend skinning, the same formula
-// since 1988.
-export function createSkinnedOsprey(
-  geometry: THREE.BufferGeometry,
-  material: THREE.Material,
-): { mesh: THREE.SkinnedMesh; rig: OspreyRig } {
-  const rig = createOspreyRig();
-  const mesh = new THREE.SkinnedMesh(geometry, material);
-  mesh.add(rig.root);
-  mesh.bind(rig.skeleton, new THREE.Matrix4());
-  mesh.frustumCulled = false; // posed bounds outgrow the rest-pose box
-  return { mesh, rig };
-}
-
-// Attach a rider (eyes, talons — anything not in the field) to a joint:
-// convert its rest-pose world position into the bone's local frame. Rest
-// bones are world-aligned translations, so local = world − head.
+// Attach a rider (eyes, a feather, anything rigid) to a joint: convert its
+// rest-pose world position into the bone's local frame. Rest bones are
+// world-aligned translations, so local = world − head.
 export function attachRider(rig: OspreyRig, boneName: string, obj: THREE.Object3D): void {
   const def = OSPREY_BONES[BONE_INDEX.get(boneName)!];
   obj.position.sub(new THREE.Vector3(...def.head));
@@ -145,8 +88,8 @@ export function attachRider(rig: OspreyRig, boneName: string, obj: THREE.Object3
 }
 
 // ---- skeleton x-ray ------------------------------------------------------------
-// Joints drawn as stretched octahedra (the Blender look) plus beads at the
-// pivots. One instanced mesh each; update() re-poses them from the rig.
+// Joints drawn as stretched octahedra plus beads at the pivots. One instanced
+// mesh each; update() re-poses them from the rig.
 
 export class SkeletonViz {
   readonly group = new THREE.Group();
@@ -193,6 +136,13 @@ export class SkeletonViz {
     }
     this.bones.instanceMatrix.needsUpdate = true;
     this.beads.instanceMatrix.needsUpdate = true;
+  }
+
+  dispose(): void {
+    this.bones.geometry.dispose();
+    (this.bones.material as THREE.Material).dispose();
+    this.beads.geometry.dispose();
+    (this.beads.material as THREE.Material).dispose();
   }
 }
 

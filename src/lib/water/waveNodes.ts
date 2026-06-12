@@ -50,10 +50,15 @@ function baseAmp(u: WaveUniforms): NodeF {
  * Surface height at horizontal position `xz` (world meters) — the exact TSL
  * transcription of `ambientWaveHeight`. The loop over the table is unrolled
  * at build time; only wind direction/speed/choppiness/time are uniforms.
+ *
+ * `count` limits the sum to the first N table waves. Vertex displacement
+ * typically uses the 3 longest waves (the short capillary dressing is
+ * millimeters tall — far below vertex spacing) while fragment normals always
+ * use all 5.
  */
-export function waveHeightNode(xz: NodeV2, u: WaveUniforms): NodeF {
+export function waveHeightNode(xz: NodeV2, u: WaveUniforms, count = WAVE_TABLE.length): NodeF {
   let h: NodeF = float(0);
-  for (let i = 0; i < WAVE_TABLE.length; i++) {
+  for (let i = 0; i < Math.min(count, WAVE_TABLE.length); i++) {
     const w = WAVE_TABLE[i];
     const k = (Math.PI * 2) / w.wavelength;
     const a = u.windDirection.add(w.angle);
@@ -66,10 +71,10 @@ export function waveHeightNode(xz: NodeV2, u: WaveUniforms): NodeF {
 }
 
 /** Analytic (∂h/∂x, ∂h/∂z) — differentiated by hand, like the CPU twin. */
-export function waveSlopeNode(xz: NodeV2, u: WaveUniforms): NodeV2 {
+export function waveSlopeNode(xz: NodeV2, u: WaveUniforms, count = WAVE_TABLE.length): NodeV2 {
   let sx: NodeF = float(0);
   let sz: NodeF = float(0);
-  for (let i = 0; i < WAVE_TABLE.length; i++) {
+  for (let i = 0; i < Math.min(count, WAVE_TABLE.length); i++) {
     const w = WAVE_TABLE[i];
     const k = (Math.PI * 2) / w.wavelength;
     const a = u.windDirection.add(w.angle);

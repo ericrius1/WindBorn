@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Stick — Stillwater</title>
+    <meta
+      name="description"
+      content="Bank and pitch as smoothed commands from keyboard and gamepad, the physics of the banked turn, and a chase camera with speed-reactive field of view."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-stick"></div>
+      <div class="hero-title">
+        <h1>The Stick</h1>
+        <p class="subtitle">
+          The physics can fly; now you get to. This post wires keyboard and gamepad
+          into bank, pitch, and effort commands, derives why banking turns the bird at
+          all, and builds the chase camera that turns numbers into sensation.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        <a href="/forces.html">Four Forces</a> gave us a bird that obeys the air. But a
+        game is a loop between two nervous systems — the simulated one and yours — and
+        right now the wire between them is missing. Today we install it. In Fish Hawk
+        you will spend ninety minutes holding this exact stick: every dive starts with
+        a pitch command, every thermal turn is a held bank, every panicked flare off
+        the water is the same input pipeline. If this layer is mushy, the whole game is
+        mushy. If it's right, you stop thinking about your hands.
+      </p>
+      <p>
+        The design rule that everything below follows: <strong>inputs are commands,
+        not state</strong>. Your keyboard never sets the bank angle — it
+        <em>requests</em> one, and the bird leans toward the request at the rate a
+        1.5&nbsp;kg body with 1.6&nbsp;m of wing plausibly could. That single layer of
+        indirection is the difference between piloting an animal and dragging an icon.
+      </p>
+
+      <h2><span class="kicker">Step 1 · Commands</span>Faking an analog soul for digital
+      keys</h2>
+      <p>
+        The model wants three channels: <code>bank</code> in −1…1, <code>pitch</code>
+        in −1…1, and <code>effort</code> in 0…1. A gamepad stick supplies the first two
+        natively — analog, already smooth. A keyboard supplies square waves: A is
+        either down or up. Feed that raw ±1 into the model and every turn entry is a
+        slap.
+      </p>
+      <p>
+        So keys get <em>ramped</em>: the command slews toward the key's target at a
+        finite rate — about 0.2&nbsp;s from center to full deflection, slightly faster
+        on release. Tap A and you get a nudge; hold it and the command eases to full
+        lock. Two rates, rise and fall, and suddenly WASD has half the expressiveness
+        of a stick. Gamepads skip the ramp (their hardware already moved through the
+        middle) and instead get a deadzone, re-scaled so there's no jump at its edge —
+        drift protection without a numb center.
+      </p>
+      <div data-demo="commands"></div>
+      <aside class="note">
+        <span class="note-label">Aside · Which way is up?</span>
+        <p>
+          Aviation convention says stick <em>back</em> pitches the nose up. Fish Hawk
+          maps W / stick-forward to <em>climb</em>, because that's what every
+          non-pilot's thumb expects, and our players are people who like birds, not
+          people with type ratings. The mapping is one sign flip in one file. Feel is
+          full of decisions like this: physically arbitrary, experientially decisive.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · The turn</span>Banking is steering, for free</h2>
+      <p>
+        Here's the part that still delights me: we don't write any turning code. The
+        bank command rolls the <em>lift vector</em> — the model takes lift
+        perpendicular to the airflow and rotates it around the flight path by the bank
+        angle <code>φ</code>. Tilted lift has a horizontal component, and an unbalanced
+        horizontal force is, by definition, a centripetal acceleration. Setting
+        <code>L·sin φ = mV²/r</code> and keeping the vertical balanced
+        (<code>L·cos φ = mg</code>) gives the turn radius:
+      </p>
+      <pre><code>r = V² / (g · tan φ)</code></pre>
+      <p>
+        At cruise (10&nbsp;m/s) a gentle 30° bank turns in about 18&nbsp;m; a steep 45°
+        tightens that to 10&nbsp;m — numbers that will matter enormously when we're
+        trying to stay inside a 20&nbsp;m thermal core two posts from now. Note what
+        the formula doesn't contain: any tunable. The demo below measures the actual
+        flown radius and compares it against the prediction, live. The two readouts
+        disagreeing by more than rounding would mean the physics is lying.
+      </p>
+      <p>
+        There's a bill, of course. Banked level flight needs
+        <code>L = W/cos φ</code> — more lift than weight, which means more angle of
+        attack, which means more induced drag. Steep turns are expensive; the bird
+        sinks or slows unless it works. That cost isn't a penalty we scripted, it's
+        the physics doing game design for us.
+      </p>
+      <div data-demo="bankturn"></div>
+
+      <h2><span class="kicker">Step 3 · The camera</span>A cameraman with a heartbeat</h2>
+      <p>
+        The camera is the player's inner ear: it's how acceleration becomes sensation.
+        Ours is a chase rig with three smoothed quantities — a follow position behind
+        the bird's horizontal heading, an aim point ahead of the beak, and the field of
+        view. Each one chases its target with frame-rate-independent damping:
+      </p>
+      <pre><code>pos ← lerp(pos, target, 1 − e^(−λ·dt))</code></pre>
+      <p>
+        The exponential form matters. A naive <code>lerp(pos, target, 0.1)</code>
+        smooths twice as hard at 30&nbsp;fps as at 60 — your camera's personality would
+        depend on the player's GPU. With <code>1 − e^(−λdt)</code> the lag
+        <code>λ</code> is a real physical rate, identical on every machine. The aim
+        point leads the bird by a few meters, so when you bank, the camera looks
+        <em>into</em> the turn before the body swings — the camera anticipating you is
+        most of what people mean by "responsive".
+      </p>
+      <p>
+        Drag the stiffness slider down and the rig turns seasick; crank it and the
+        camera becomes a rigid pole and the world stops feeling fast. There's a band
+        in the middle — around 3–4&nbsp;s⁻¹ — where the camera feels like a competent
+        cameraman on a following boat. Then hit the rigid toggle to feel exactly what
+        the smoothing was buying you.
+      </p>
+      <div data-demo="chasecam"></div>
+
+      <h2><span class="kicker">Step 4 · Speed in the lens</span>FOV is the speedometer</h2>
+      <p>
+        Fish Hawk has no HUD, so speed has to live in the picture. The strongest
+        single cue is field of view: widening the lens exaggerates optic flow at the
+        frame's edges, the same peripheral streaming your visual system uses to judge
+        speed on a highway. The rig maps airspeed above cruise to extra FOV — about a
+        degree per m/s, smoothed through the same exponential damping so it swells
+        rather than pops:
+      </p>
+      <pre><code>fov = 55° + 1.1 · max(0, V − 9)</code></pre>
+      <p>
+        Nine m/s is cruise, where the lens sits at its neutral 55°. A 25&nbsp;m/s dive
+        opens it past 70°, and because the change rides the <em>airspeed</em>, a dive
+        into a headwind reads faster than one with the wind behind you — which is
+        true, aerodynamically and emotionally. There's a second trick (kicking the FOV
+        on acceleration rather than speed) that we'll save for
+        the joy pass, where it belongs.
+      </p>
+      <div data-demo="fovspeed"></div>
+
+      <p>
+        We can now point the bird anywhere and feel it go. Which means players will
+        immediately do what players do: pull up until something gives, and dive until
+        the water gets loud. Right now the model's edges are merely <em>there</em> —
+        next post we make them <em>good</em>. <a href="/envelope.html">The
+        Envelope</a> is about stalls that mush instead of punish, dives that earn
+        their speed, and the flare that saves you a meter off the lake.
+      </p>
+    </main>
+    <footer>
+      <p><a href="https://github.com/ericrius1/stillwater">Source on GitHub</a></p>
+    </footer>
+    <script type="module" src="/src/stick.ts"></script>
+  </body>
+</html>
