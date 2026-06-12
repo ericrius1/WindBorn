@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>Stillwater</title>
+    <meta
+      name="description"
+      content="A game built in public: an osprey, a mountain lake, and a real splash. Four seasons of interactive essays on water, wings, weather, and sound — converging on a playable game called Fish Hawk."
+    />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body class="home-page">
+    <header class="hero home-hero">
+      <div class="home-hero-bg" data-demo="hero" aria-hidden="true"></div>
+      <div class="home-hero-inner">
+        <h1>Stillwater</h1>
+        <p class="subtitle home-subtitle">
+          One lake, one bird, one game — built in public, essay by essay.
+          Water that splashes, wind you can ride, a world that keeps time.
+        </p>
+        <p class="home-meta" data-home-meta></p>
+        <div class="home-cta">
+          <a class="home-btn is-primary" href="/skin.html">Start with the water →</a>
+          <a class="home-btn" href="/game.html">Play Fish Hawk</a>
+          <a class="home-btn" href="#essays">Browse the seasons</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="home-main">
+      <p class="home-intro">
+        This site builds a game called <em>Fish Hawk</em> — you are an osprey
+        on a mountain lake, and the dive is real: the splash is a fluid
+        simulation, the wind in your ears is synthesized from your airspeed,
+        and the fish told you where they were. Every essay adds one working
+        piece, every figure runs live on your GPU, and at the end of every
+        season the pieces snap together into something you can play.
+      </p>
+
+      <div id="essays" data-home-series></div>
+    </main>
+
+    <footer>
+      <p>
+        <a href="https://algorythmic.art">Algorythmic Explorations</a> ·
+        <a href="https://github.com/ericrius1/stillwater">Source on GitHub</a>
+      </p>
+    </footer>
+
+    <script type="module" src="/src/home.ts"></script>
+  </body>
+</html>
