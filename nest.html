@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Nest — Stillwater</title>
+    <meta
+      name="description"
+      content="The home that grows: carry catches to the dead pine on the north-shore point, eat there, and across a handful of days the nest fills in — bare spar to lined cup to a brood. Light progression, zero grind."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-nest"></div>
+      <div class="hero-title">
+        <h1>The Nest</h1>
+        <p class="subtitle">
+          A game needs somewhere for the days to add up. Fish Hawk's answer is a
+          dead pine on a north-shore point, and a nest that fills in a few sticks
+          at a time as you carry catches home. No quota, no timer, nothing to top
+          up — just a place that slowly becomes a home. Click to fish the bay and
+          fly the catch back.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        By now the verbs are all here: you can <a href="/loop.html">spend a
+        day</a>, <a href="/hunt.html">read the water</a> for a fish, and
+        <a href="/thedive.html">dive a scored strike</a> that lands a catch with
+        real weight. What's missing is a reason to do it more than once — a thread
+        that runs from one day to the next, so a handful of evenings on the lake
+        feel like they were <em>about</em> something. That thread is the nest, and
+        the hardest part of designing it was deciding how little it should ask.
+      </p>
+      <p>
+        The temptation, the moment you have a save file and a catch, is to bolt on
+        a progression system: experience bars, upgrade trees, a resource you
+        grind to refill. Every one of those would fight the tone. Fish Hawk is
+        <em>A&nbsp;Short&nbsp;Hike</em>, an evening you sink into, not a treadmill
+        you climb. So the nest is the smallest progression that still feels like
+        growth: five stages, each a few meals apart, and once it's done it stays
+        done. You can fish forever after, for the joy of it, and the game will
+        never ask you for anything again.
+      </p>
+
+      <h2><span class="kicker">Step 1 · Five states of home</span>The cup, built across days</h2>
+      <p>
+        The nest lives at one fixed place: <code>NEST_SNAG</code>, a grand dead
+        pine the <a href="/lakebed.html">Basin</a> places on the north-shore
+        promontory, chosen by scanning the shoreline for low flat ground with open
+        water on most sides — exactly where a real osprey builds. Its flat crown is
+        home, claimed the moment you arrive. From there it grows in five states:
+        the <strong>bare spar</strong>, then <strong>first sticks</strong> wedged
+        into the crown, then a real <strong>cup</strong> deep enough to disappear
+        into, then a <strong>lined</strong> bowl of moss and grass, and finally
+        <strong>the brood</strong> — three pale eggs, and a reason to be a fish
+        hawk that goes past hunger. Each stage carries a journal line, because
+        building the nest is itself a thing witnessed.
+      </p>
+      <p>
+        The geometry is deliberately humble and built by hand, no fancy growth
+        simulation: a tapered spar, and rings of short twigs laid around the rim,
+        faded in stage by stage so each meal visibly adds sticks. The state — which
+        stage, how close to the next — lives in the same <a href="/loop.html">save
+        file</a> the rest of the game uses; the sticks are just that number, drawn.
+        The figure below is the nest with the flying removed: orbit the snag and
+        press <em>feed at nest</em> to advance the state, and watch the cup fill in
+        and the journal note for the new stage appear.
+      </p>
+      <div data-demo="stages"></div>
+      <aside class="note">
+        <span class="note-label">Aside · Ospreys and their nests</span>
+        <p>
+          Real ospreys are famously loyal to a nest site, returning to the same
+          platform year after year and adding to it each season until some grow to
+          the size of a small car. They favor dead snags and the tops of broken
+          pines for the clear sightlines and the open approach. Pairs build
+          together — the male brings most of the sticks, the female arranges
+          them — over a couple of weeks in spring. Fish Hawk compresses a season's
+          building into a handful of days, but the shape of it, a bare crown
+          becoming a deep lined cup, is true to the bird.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · A nudge, not a quota</span>Why there's no grind</h2>
+      <p>
+        Here is the entire progression curve: it takes three meals to build out of
+        the first stage, four out of the next, then five, then six. That's it —
+        small numbers that grow only gently, capped at a finished nest. There is no
+        decay, so a nest never falls back; no timer, so you are never racing; no
+        bar to keep topped up. A meal eaten at the nest counts toward the home; a
+        meal eaten on the wing just answers your hunger. You choose, every catch,
+        whether dinner goes down your own throat or toward the cup, and either
+        choice is fine.
+      </p>
+      <p>
+        The only thing the game ever <em>says</em> about it is a single line of
+        encouragement — <code>nestGoal</code> — phrased as a suggestion you can
+        ignore. Hungry and the nest unbuilt: <em>eat first, then bring one home.</em>
+        Comfortable: <em>carry a catch to the snag to build toward the cup.</em>
+        Finished: <em>the nest is done; the lake is yours to wander.</em> The
+        figure below shows that whole table — every stage crossed with every
+        hunger word — so you can see there is nothing hiding behind it. It is one
+        sentence, and it never scolds.
+      </p>
+      <div data-demo="goals"></div>
+      <p>
+        In the hero, that's the loop closed: fish the bay, carry the catch the long
+        way home to the point, skim the spar, and feel the nest take one more stick.
+        Sleep when the light goes and the day rolls over; a few days of that and the
+        brood is in. Every system the game owns is now in place and proven on its
+        own. What's left is the honest accounting — turning <em>all</em> of it on at
+        once and asking whether it holds sixty frames a second — and then the
+        <a href="/game.html">game itself</a>. Next: <a href="/reckoning.html">the
+        reckoning</a>.
+      </p>
+    </main>
+    <footer>
+      <p>
+        <a href="https://github.com/ericrius1/stillwater">Source on GitHub</a>
+      </p>
+    </footer>
+    <script type="module" src="/src/nest.ts"></script>
+  </body>
+</html>

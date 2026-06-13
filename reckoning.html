@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Reckoning — Stillwater</title>
+    <meta
+      name="description"
+      content="Every system Fish Hawk owns, on at once: a sky that raymarches clouds, a fluid lake, a clipmap valley, a living ecosystem, and a cinematic post stack — and the frame budget that has to hold sixty."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-reckoning"></div>
+      <div class="hero-title">
+        <h1>The Reckoning</h1>
+        <p class="subtitle">
+          Each system was profiled alone and ran fine. The reckoning is what
+          happens when you turn them <em>all</em> on at once — sky, water, terrain,
+          ecosystem, post — and ask the only question a game cares about: does it
+          hold sixty? Here is the full world, the budget broken down, and the
+          knobs that buy back headroom. Click to fly it and watch the fps.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Every post in this project has ended with a demo that ran smoothly, and
+        every one of them was lying a little — because each was alone in the
+        frame. The <a href="/clouds.html">clouds</a> raymarched against an empty
+        sky. The <a href="/simbubble.html">fluid window</a> stepped with nothing
+        else competing for the GPU. The <a href="/fish.html">fish</a> schooled
+        over flat water. A game is the moment they all share a sixteen-millisecond
+        budget at once, and that is a different, harsher question. This post is the
+        reckoning: the whole world assembled, and an honest look at whether it
+        fits.
+      </p>
+      <p>
+        The target is plain. Sixty frames a second on an M-series laptop means
+        every frame, start to finish, must complete in <strong>16.7
+        milliseconds</strong>. Into that window we have to fit a sky that scatters
+        light and marches volumetric cloud, a lake whose surface is a shaded sheet
+        over a moving fluid sim, kilometers of <a href="/farshore.html">clipmap
+        terrain</a>, a few hundred animated fish and insects and other birds, the
+        flight integration, and a <a href="/grade.html">cinematic post stack</a>
+        of grade, bloom, and speed effects. The good news is that almost none of
+        it is fixed: nearly every system has a knob, and the art of shipping is
+        knowing which knob to turn first.
+      </p>
+
+      <h2><span class="kicker">Step 1 · Where the milliseconds go</span>Reading the budget</h2>
+      <p>
+        You cannot optimize what you cannot see, so the first job is attribution:
+        of those 16.7 milliseconds, where do they go? The rough shape, on this
+        world, is that the <strong>sky</strong> is the heaviest tenant — the cloud
+        raymarch alone can eat half the budget at full quality — followed by the
+        <strong>water</strong>, then the <strong>terrain</strong> mesh, then the
+        <strong>ecosystem</strong>, with the <strong>post</strong> stack a roughly
+        fixed couple of milliseconds on top. The figure below stacks those classes
+        into one bar against the sixty-fps line, and lets you flip between the
+        low, medium, and high presets to watch the budget redistribute — clouds
+        and water collapsing first, because that's where the money is.
+      </p>
+      <p>
+        An honest caveat, stated plainly: that breakdown is an <em>estimate</em>.
+        We can measure the whole frame from JavaScript, but a browser doesn't hand
+        out reliable per-pass GPU timings, so the per-system split is modeled from
+        each preset's known weights rather than read off a profiler. The number
+        that matters — the total, and whether it's under the line — is real,
+        measured on your machine in the hero above. The breakdown is there to show
+        the <em>shape</em>: which systems dominate, and therefore which knob to
+        reach for when a frame runs long.
+      </p>
+      <div data-demo="budget"></div>
+      <aside class="note">
+        <span class="note-label">Aside · A fixed window beats a bigger world</span>
+        <p>
+          The single best performance decision in the whole project was made back
+          in <a href="/simbubble.html">the sim bubble</a>: the fluid simulation is
+          a fixed-size grid that follows the bird, not a lake-sized one. Doubling
+          the lake costs the fluid sim nothing, because the sim never sees the
+          lake — only its own twenty-eight-meter window. The same instinct runs
+          through the terrain clipmap and the focus-following weather: spend detail
+          where the player is looking, fake the rest, and the cost stays flat as
+          the world grows. Most of holding sixty is refusing to pay for what isn't
+          on screen.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · The heaviest knob</span>Scaling, in one slider</h2>
+      <p>
+        When a frame runs long, the first knob is always the most expensive
+        system, and here that is unambiguous: the volumetric cloud march. Every
+        cloud pixel walks a ray through the sky volume in a fixed number of steps,
+        and that step count is a straight multiplier on the sky's cost — and the
+        sky is already the heaviest tenant. The figure below puts that one slider
+        on an orbiting world and shows the measured fps move with it: drop the
+        steps toward zero for a flat, cheap sky, push them toward twenty for a lush
+        and dear one. Nothing else changes; this is the purest example of a scaling
+        knob earning its keep.
+      </p>
+      <p>
+        The presets in the hero are just bundles of these knobs chosen to land on
+        a frame budget. <em>High</em> spends freely — sixteen cloud steps, two
+        hundred water cells, ninety fish, geese and an eagle aloft. <em>Low</em>
+        flattens the sky entirely, thins the school, and grounds the extra birds,
+        trading richness for a frame that holds on a modest machine. <em>Medium</em>
+        is the default the game ships with: clouds present but lean, the ecosystem
+        full enough to telegraph fish, the post stack intact. Flip between them in
+        the hero and the fps readout is the verdict.
+      </p>
+      <div data-demo="knobs"></div>
+      <p>
+        So the budget holds, with the knobs to defend it when a machine is slower
+        than ours. That is the last piece of engineering the project needs: every
+        system proven alone, then proven together, with a frame that fits and a way
+        to keep it fitting. Everything from here is assembly. The
+        <a href="/game.html">next and final post</a> turns all of this — the loop,
+        the hunt, the scored dive, the growing nest, this whole budgeted world —
+        into the thing it was always for: <a href="/game.html">Fish Hawk</a>, the
+        game.
+      </p>
+    </main>
+    <footer>
+      <p>
+        <a href="https://github.com/ericrius1/stillwater">Source on GitHub</a>
+      </p>
+    </footer>
+    <script type="module" src="/src/reckoning.ts"></script>
+  </body>
+</html>

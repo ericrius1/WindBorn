@@ -13,7 +13,7 @@
 // time a one-flag operation.
 
 import { Vector3 } from "three/webgpu";
-import { float, screenSize, smoothstep, uniform, uv, vec4 } from "three/tsl";
+import { float, mix, screenSize, smoothstep, uniform, uv, vec3, vec4 } from "three/tsl";
 import type { Node, PerspectiveCamera } from "three/webgpu";
 import { clock } from "../spine";
 import type { FlightState } from "../flight/state";
@@ -73,7 +73,7 @@ export class FramingGuides {
       .add(center.mul(eq(3)))
       .mul(this.opacity);
 
-    return vec4(base.rgb.mix(vec4(0.92, 0.95, 1.0, 1).rgb, mask), base.a);
+    return vec4(mix(base.rgb, vec3(0.92, 0.95, 1.0), mask), base.a);
   }
 }
 
@@ -397,7 +397,7 @@ export class PhotoMode {
 
   /** The flash as a node: a brief whole-frame lift toward white. */
   flashNode(base: NodeV4): NodeV4 {
-    return vec4(base.rgb.mix(vec4(1, 1, 1, 1).rgb, this.flash.mul(0.85)), base.a);
+    return vec4(mix(base.rgb, vec3(1, 1, 1), this.flash.mul(0.85)), base.a);
   }
 
   dispose(): void {

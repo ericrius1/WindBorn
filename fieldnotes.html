@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>Field Notes — Stillwater</title>
+    <meta
+      name="description"
+      content="Photo mode as the game's witness verb: freezing the world clock with one substitution, a free camera on a leash, framing guides for thirds and the golden ratio, and a journal that earns its own entries from the moments the lens catches."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-fieldnotes"></div>
+      <div class="hero-title">
+        <h1>Field Notes</h1>
+        <p class="subtitle">
+          Four of Fish Hawk's five verbs are about doing. The fifth is about
+          looking. This post builds photo mode — freeze the world, drift a free
+          lens through the held moment, frame it against the rule of thirds, and
+          fill a journal that earns its own entries.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Fish Hawk is a small game about a big feeling: being an osprey on a lake
+        ringed by mountains, at first light, with the whole day ahead. Soaring,
+        spotting, diving, and building the nest are the verbs you <em>do</em>.
+        But the lake we have spent this whole project building — the
+        <a href="/stillwater.html">glass dawn</a>, the
+        <a href="/air.html">sky that keeps time</a>, the
+        <a href="/night.html">moonlight on black water</a> — exists to be
+        <em>seen</em>, and a world worth living in deserves a way to stop and
+        witness it. So the last system before the game itself is the one that
+        turns the player from a pilot into a photographer. Photo mode is three
+        familiar tools fused into a fourth thing: a pause that's deeper than a
+        pause, a camera that floats free of its rig, composition lines borrowed
+        from a century of cinematography, and a journal that quietly notices what
+        you point the lens at. None of it is hard. The trick is where the pause
+        lives.
+      </p>
+
+      <h2><span class="kicker">Step 1 · Freezing time</span>One substitution, the whole world stops</h2>
+      <p>
+        Every demo on this site that animates does it the obvious way: it keeps a
+        running total of seconds and feeds that to the waves, the wingbeats, the
+        drifting clouds. <code>t += dt</code>, every frame, forever. That single
+        line is also the reason most games can't freeze cleanly — pausing means
+        hunting down every system that holds its own clock and stopping each one,
+        and you always miss one. The fix is to invert the ownership. Instead of
+        each scene accumulating its own seconds, the photo controller owns one
+        number and the scene <em>asks</em> for it: <code>t = photo.worldTime(dt)</code>.
+        While photo mode is off, that call returns an ever-growing total, exactly
+        as before. While it's on, it returns the same number it returned last
+        frame. Every wave, every wingbeat, every cloud reads <code>t</code> and
+        therefore stops together, in the same instant, with no per-system
+        plumbing at all. Freezing the world becomes a one-flag operation. Hit the
+        button and the lake holds mid-ripple while the camera keeps moving:
+      </p>
+
+      <div data-demo="freeze-clock"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · The clock is paused, not the camera</span>
+        <p>
+          There's a deliberate asymmetry here. The world clock stops — the sun
+          hangs, the waves hold, the simulated time the
+          <a href="/wetlens.html">wet lens</a> and the grade read goes still. But
+          the <em>camera's</em> own time keeps running, because you still want to
+          fly the lens around the frozen moment. Photo mode pauses the spine
+          clock and the scene's <code>worldTime</code>; it leaves the input loop,
+          the render loop, and the shutter flash on their own real-time tick.
+          Freeze the subject, free the observer — that split is the entire feel of
+          a good photo mode.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · Framing</span>Lines a century of photographers agree on</h2>
+      <p>
+        A frozen moment still needs to be <em>composed</em>, and composition has a
+        small kit of guides that show up in every viewfinder ever made. The rule
+        of thirds drops two lines each way at <code>1/3</code> and
+        <code>2/3</code>, splitting the frame into nine cells; placing your
+        subject on a line, or a point of interest where two cross, reads as more
+        deliberate than dead-centre. The golden-ratio variant cuts a little
+        tighter, at <code>0.382</code> and <code>0.618</code> — that's
+        <code>1 − 1/φ</code> and <code>1/φ</code>, the two divisions of the
+        golden section — and a centre cross helps when you <em>do</em> want
+        symmetry, like a mountain mirrored in still water. We draw all of them as
+        a screen-space overlay node, the last stage in the chain after the grade
+        and the tone map, because guides are interface, not light: one pixel
+        wide, a soft anti-aliased line, riding on top of the finished frame.
+        Cycle through them over the lake:
+      </p>
+
+      <div data-demo="framing-guides"></div>
+
+      <h2><span class="kicker">Step 3 · The free camera</span>Off the rig, onto a leash</h2>
+      <p>
+        In play, the camera is a chase rig — it follows the bird, smooths its
+        own motion, breathes its FOV with airspeed the way
+        <a href="/joy.html">the joy pass</a> tuned it. Photo mode unbolts it.
+        Drag to look (yaw and pitch, clamped just shy of straight up and down so
+        you never tumble), WASD to fly relative to where you're pointing, Q and E
+        for down and up, shift to sprint. The pose seeds itself from wherever the
+        chase camera was looking the instant you entered, so the transition is
+        seamless — you take the wheel from exactly the framing you had.
+      </p>
+      <p>
+        The one unobvious piece is the <em>leash</em>. A free camera with no limit
+        invites the player to fly off across the valley and discover the edges of
+        the world — the seam where the terrain LOD gives out, the back of a
+        billboard. Photo mode is for exploring a moment, not for leaving the
+        scene, so the lens is tethered: it may roam a fixed radius from the point
+        where you entered, and beyond that the position is gently clamped back
+        onto the circle. Far enough to walk around your subject, not far enough to
+        break the spell. Enter photo mode and fly the lens:
+      </p>
+
+      <div data-demo="free-camera"></div>
+
+      <h2><span class="kicker">Step 4 · The journal</span>A notebook that fills itself</h2>
+      <p>
+        Here's where photo mode stops being a screenshot tool and becomes a game
+        verb. Fish Hawk has no quest log and no checklist — the
+        <a href="/joy.html">whole design</a> is to read the world, not a HUD. But
+        the world is full of moments worth catching, and we'd like the player to
+        be quietly rewarded for catching them. So we define a set of
+        <em>moments</em>, each one a tiny predicate over the state the spine and
+        the flight model already publish: <em>glass dawn</em> is "before
+        half-past five, wind under three"; <em>the tuck</em> is "wings folded and
+        sinking fast"; <em>under the mirror</em> is "the camera is below the
+        surface". Fire the shutter and the journal tests every unwitnessed moment
+        against the current context, records the ones that match, and hands you
+        the line of prose you just earned. The witnessed set persists to
+        local storage, so the journal remembers across sessions — your field
+        notebook fills across the in-game days, one caught moment at a time. Scrub
+        the hour, point the lens, and press the shutter; the entries reveal
+        themselves:
+      </p>
+
+      <div data-demo="the-journal"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · Moments are data, not code</span>
+        <p>
+          Each journal entry is a plain object — an id, a title, the prose you
+          earn, and a <code>when(ctx)</code> function — sitting in a list. Adding
+          a new one to chase (a double rise, a heron at the shallows, the first
+          snow on the high ridge) is appending to an array, not threading a new
+          flag through the game loop. That's the same discipline the rest of the
+          project runs on: the moment knows the condition that defines it, the
+          shutter just asks each moment whether it's true right now. The game's
+          sense of "things worth seeing" becomes a file you can grow.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Onward</span>What this unlocks — and what comes next</h2>
+      <p>
+        That closes Glass &amp; Grain. The chain that started as a single
+        <a href="/grade.html">tone curve</a> now grades by the hour, blooms the
+        sun glitter, smears and focuses for speed, refracts the
+        <a href="/wetlens.html">crossing</a> through water, and finally hands the
+        whole apparatus to the player as a camera they can stop the world with.
+        Every stage reads the same spine the rest of the lake obeys, and the whole
+        pass mounts wholesale — one object the game can switch on. Which is
+        exactly what happens next. We have spent this entire project building
+        systems in isolation: a surface, a bird, a flight model, a basin, a fluid
+        sim, an underwater world, a sky, an ecosystem, a soundscape, and now this
+        cinematic pass. The final season stops adding and starts assembling. The
+        hunger and the daylight, the hunt without a HUD, the scored dive, the nest
+        that grows across days — and then all fifty-some systems lit at once,
+        holding sixty frames a second, on one lake. The game.
+      </p>
+    </main>
+    <footer>
+      <p>Stillwater — building Fish Hawk in public, one system at a time.</p>
+    </footer>
+    <script type="module" src="/src/fieldnotes.ts"></script>
+  </body>
+</html>

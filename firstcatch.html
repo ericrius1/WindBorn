@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The First Catch — Stillwater</title>
+    <meta
+      name="description"
+      content="Season 2's playable milestone: a real glacial basin, a fluid simulation that follows the bird, and the whole fishing loop — spot, dive, splash, grab, breach — flown end to end with no fail state."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-firstcatch"></div>
+      <div class="hero-title">
+        <h1>The First Catch</h1>
+        <p class="subtitle">
+          Season two ends in the water. A real basin holds the lake, a real
+          fluid simulation lives in a window around the bird, and the dive is
+          the whole point: read the rings, tuck, punch through the surface,
+          grab in the dark, and burst back into the light with a fish.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        <a href="/firstflight.html">First Flight</a> ended on an apology: the
+        mountains were silhouette cardboard, the lake had no floor, and the
+        splash was a polite analytic ring drawn on a flat sheet. It was a stage
+        set with a real actor on it. The verb was <em>soar</em>, and it worked
+        — but the game is named for a hunt, and you can't hunt over a stage
+        set. Season 2 was three series of digging a real hole for the bird to
+        dive into. <a href="/cirque.html">The Basin</a> carved a glacial
+        valley out of warped ridged noise and ran the
+        <a href="/lakebed.html">bathymetry</a> on under the water, so the lake
+        finally has a bottom that the water knows about.
+        <a href="/simbubble.html">The Splash</a> built a real fluid simulation
+        that lives only in a small window around the action and blends into the
+        ambient lake at its rim. <a href="/breach.html">Under</a> took the
+        camera below the surface and assembled the dive cycle. The hero above
+        is all of it at once, flyable: the same player-driven bird from First
+        Flight, now diving into water that pushes back. Click in, read the
+        surface for cruising fish, line up, and commit. There is no fail state.
+        A missed dive costs you a wet climb-out and another lap — never a
+        retry screen.
+      </p>
+
+      <h2><span class="kicker">Step 1 · The surface is the HUD</span>Reading the water for fish</h2>
+      <p>
+        The whole design of the hunt is a refusal: no markers, no minimap, no
+        glowing fish. The fish telegraph themselves, and the surface of the
+        lake is the only HUD there is. That sounds like a stylistic choice, but
+        it's mostly a physics one. A fish cruising the shallows catches the low
+        sun on its flank and throws a glint; a fish rising to feed breaks the
+        surface and stamps a ring that spreads outward on the
+        <a href="/firstflight.html">disturbance bus</a>. Both of those are real
+        signals a real osprey reads, and both of them already exist in the
+        engine for other reasons — the glints are the
+        <a href="/fish.html">schooling fish</a> catching the sun, the rings are
+        the same bus packets the lake has answered since the very first water
+        demo.
+      </p>
+      <p>
+        So the spotting mechanic costs almost no new code: point the school at
+        a shallow bay, let it cruise and rise, and let the surface do the
+        talking. The catch is that the lake's own ripple rings are a
+        close-range effect — the ring pool is small, the sim window is only a
+        few meters wide. A rise has to be legible from eighty meters up, at
+        cruise altitude, where the local surface shader is a smear. So the bus
+        feeds a second, coarser telegraph too: flat expanding geometry rings,
+        one per event, readable from the air. Below, a school feeds under a
+        flat-bottomed tank — everything beneath the surface stripped away so
+        you can practice the one skill the hunt asks for. Turn the feeding
+        activity up and watch the rings multiply; turn the wind up and watch
+        the chop start hiding the glints, exactly the way it hides them for a
+        real bird.
+      </p>
+      <div data-demo="telegraph"></div>
+      <aside class="note">
+        <span class="note-label">Aside · Why ospreys, specifically</span>
+        <p>
+          The osprey is the only hawk that hunts this way — a near-vertical
+          plunge, feet first, fully submerging from heights of ten to thirty
+          meters. Its outer toe is reversible, so it can clamp a slippery fish
+          two-and-two instead of three-and-one, and its talons are unusually
+          long and round in cross-section. Dense, oily plumage keeps it from
+          waterlogging, mostly; even so a soaked osprey hauls a real fraction
+          of its own weight in water out of the lake on every dive. That weight
+          is a gameplay number, not just a fact — it's why carrying a catch in
+          this build costs you power and trim in the air.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · The window follows the dive</span>A simulation that travels</h2>
+      <p>
+        A glacial lake is a couple of kilometers across. Simulating fluid
+        across all of it at a resolution fine enough to see a splash crown
+        would melt the laptop, and it would be wasted: ninety-nine percent of
+        that water is calm and far away, perfectly described by the cheap
+        analytic wave sum the <a href="/firstflight.html">Mirror lake</a>
+        already renders. The trick from <a href="/simbubble.html">The Sim
+        Bubble</a> is to simulate only where it matters. A fixed-size grid — a
+        few hundred cells on a side, covering a window twenty-some meters wide
+        — follows the bird around the lake. Inside the window you get the real
+        thing: <a href="/coupling.html">two-way coupling</a>, a crown of
+        <a href="/crown.html">spray</a>, spreading wakes. At the window's rim
+        the simulated height cross-fades into the ambient analytic surface, so
+        the seam between "real sim" and "fake lake" is invisible.
+      </p>
+      <p>
+        The piece that makes this honest is the
+        <code>waterHeightAt(x, z, t)</code> contract. The whole engine asks
+        that one function for the surface height — the floating bird, the
+        plunge floor, the camera's surface-crossing test, the splash audio.
+        Installing the sim swaps the provider behind that function: now it
+        answers with the simulated height wherever the window covers, and the
+        ambient sum everywhere else, and nothing that calls it has to know. The
+        float you flew in First Flight survives the swap without a line
+        changed; it just finally makes a real hole. Below, a scripted diver
+        loops the dive forever so you can stare at the one seam — the window
+        sliding to keep up, the depth term read straight from the bathymetry so
+        waves slow and steepen over the shallows. Drag the blend rim in, or
+        toggle the hard edge, and watch the seam appear.
+      </p>
+      <div data-demo="window"></div>
+
+      <h2><span class="kicker">Step 3 · The grab, in the dark</span>One short window under the surface</h2>
+      <p>
+        Here is where the dive stops being a flight problem and becomes a hunt.
+        The plunge itself is honest physics: entry pays a splash proportional
+        to kinetic energy, then the roughly eight-hundred-fold jump in density
+        scrubs the bird's speed to nothing in about a quarter second, and
+        buoyancy — a feathered body is mostly trapped air — turns it around and
+        rows it back toward the light. Inside that brief submarine moment is
+        the grab. For a window of barely a second, talons-first and early in
+        the plunge, the bird reaches: any fish within a fixed talon radius is
+        caught and rides home; reach short and the fish bolts for the deep
+        hole.
+      </p>
+      <p>
+        That single radius check is the entire fishing minigame, and keeping it
+        that simple is deliberate. There is no quick-time event, no button
+        mash, no aim cursor underwater. You aimed the whole dive; the grab is
+        the dive's verdict, read once. The submarine moment is also where
+        <a href="/breach.html">Under</a> earns its keep: the camera crosses the
+        <a href="/lens.html">surface lens</a> with you — a meniscus band on the
+        way down, droplets streaking the glass on the way up — the key light
+        loses its red as you go deeper, and a depth dome stands in for water in
+        every direction. Below, the grab runs in slow motion so you can watch
+        the talons close. Slow time further, widen or pinch the talon reach,
+        and replay until the geometry of the catch is obvious.
+      </p>
+      <div data-demo="grab"></div>
+      <aside class="note">
+        <span class="note-label">Aside · The frame budget</span>
+        <p>
+          The hero scene runs three expensive systems at once — a planar-free
+          but still costly sim step, a spray particle system, and an underwater
+          render path — so the budget is spent deliberately. The fluid grid is
+          held to a hundred-sixty cells square inside a twenty-eight-meter
+          window; spray is capped at a couple thousand sprites; the terrain is
+          one graded mesh, fine where you fly and coarsening geometrically out
+          to the rim, so the kilometers of far shore cost almost nothing. The
+          sim mirrors its texture for one frame's latency to avoid a
+          read-back stall. That all leaves headroom to hold sixty on an
+          M-series laptop, which is the only frame rate this project considers
+          shipped.
+        </p>
+      </aside>
+
+      <p>
+        That's the milestone: spot, dive, splash, grab, breach — the verb
+        <em>dive</em>, playable end to end, built almost entirely from three
+        series that each shipped their piece in isolation and met for the first
+        time on this page. The glue is small because the contracts were set
+        years of essays ago: one water query the sim swaps behind, one bus
+        every splash and rise rides, one bird that doesn't care which law of
+        nature owns it this frame. And like First Flight, it is still honestly
+        a graybox. The valley is real terrain but the light is a placeholder
+        dawn; there is no weather, no time of day, no sound. The fish school and
+        rise, but the lake is otherwise empty — no swallows skimming, no
+        mayflies on the water, no eagle to steal your catch. Season 3 fills the
+        world in. <a href="/firstflight.html">First Flight</a> gave the bird a
+        body and a sky to fly in; this milestone gave it a hunt. The next one
+        gives it a <em>day</em> — dawn mist burning off glass water, a weather
+        front crossing at noon, the dusk hatch that turns the whole surface to
+        rings, a moonlit night, and the first sounds the lake has ever made.
+        Season 2 was <em>dive</em>. Season 3 is <em>witness</em>.
+      </p>
+    </main>
+    <footer>
+      <p>
+        <a href="https://github.com/ericrius1/stillwater">Source on GitHub</a>
+      </p>
+    </footer>
+    <script type="module" src="/src/firstcatch.ts"></script>
+  </body>
+</html>

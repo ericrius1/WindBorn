@@ -21,6 +21,7 @@ import {
   float,
   int,
   Loop,
+  mix,
   perspectiveDepthToViewZ,
   screenSize,
   smoothstep,
@@ -42,18 +43,23 @@ type NodeV4 = Node<"vec4">;
  * the pixel — the discrete version of integrating the image over the
  * shutter interval. `velocityTex` is the MRT velocity target (NDC units per
  * frame); `shutter` scales it (1 = the full frame-to-frame motion).
+ *
+ * `base` is the upstream chain's color at this pixel; it stands in for the
+ * center tap so stacked resamplers compose (the neighbors still come from
+ * the raw frame — exact when one resampler runs, honest when two overlap).
  */
 export function velocityBlurNode(
   sceneTex: TextureNode,
   velocityTex: TextureNode,
   shutter: NodeF | number = 1,
   taps = 12,
+  base?: NodeV4,
 ): NodeV4 {
   return Fn(() => {
     const uvN = uv();
     // velocity is NDC (−1..1) per frame; screen uv moves at half that rate
     const vel = velocityTex.sample(uvN).xy.mul(0.5).mul(shutter);
-    const acc = sceneTex.sample(uvN).toVar();
+    const acc = (base ?? sceneTex.sample(uvN)).toVar();
     Loop({ start: int(1), end: int(taps), type: "int", condition: "<" }, ({ i }) => {
       const s = float(i).div(taps - 1).sub(0.5); // −0.5 .. +0.5 across the shutter
       acc.addAssign(sceneTex.sample(uvN.add(vel.mul(s))));
@@ -87,6 +93,7 @@ export interface StreakParams {
 export function radialStreakNode(sceneTex: TextureNode, base: NodeV4, params: StreakParams): NodeV4 {
   const { amount, center, reach = 0.22, fringe = 0, taps = 8 } = params;
   const centerU = uniform(center);
+  const fringeN: NodeF = typeof fringe === "number" ? float(fringe) : fringe;
   return Fn(() => {
     const uvN = uv();
     const toPx = uvN.sub(centerU); // ray the streak runs along
@@ -98,8 +105,8 @@ export function radialStreakNode(sceneTex: TextureNode, base: NodeV4, params: St
       const f = float(i).div(taps - 1); // 0..1 along the streak
       const pull = flow.mul(f);
       // chromatic spread: long-wavelength taps reach farther down the streak
-      const pr = pull.mul(float(fringe).mul(0.35).add(1));
-      const pb = pull.mul(float(1).sub(float(fringe).mul(0.35)));
+      const pr = pull.mul(fringeN.mul(0.35).add(1));
+      const pb = pull.mul(float(1).sub(fringeN.mul(0.35)));
       const sr = sceneTex.sample(uvN.sub(toPx.mul(pr))).r;
       const sg = sceneTex.sample(uvN.sub(toPx.mul(pull)));
       const sb = sceneTex.sample(uvN.sub(toPx.mul(pb))).b;
@@ -107,7 +114,7 @@ export function radialStreakNode(sceneTex: TextureNode, base: NodeV4, params: St
     });
     const streaked = acc.div(taps);
     // blend by flow, not raw amount: the center keeps the sharp frame
-    return base.mix(streaked, flow.div(reach).clamp(0, 1).mul(amount.clamp(0, 1)));
+    return mix(base, streaked, flow.div(reach).clamp(0, 1).mul(amount.clamp(0, 1)));
   })();
 }
 
@@ -144,19 +151,24 @@ for (let i = 0; i < DISC_TAPS; i++) {
  * the tap's own CoC over the gather radius, the scatter-as-gather trick
  * that keeps in-focus subjects from being smeared by a blurred background.
  */
-export function cocDofNode(sceneTex: TextureNode, depthTex: TextureNode, p: DofParams): NodeV4 {
+export function cocDofNode(
+  sceneTex: TextureNode,
+  depthTex: TextureNode,
+  p: DofParams,
+  base?: NodeV4,
+): NodeV4 {
   return Fn(() => {
     const uvN = uv();
     const aspect = screenSize.y.div(screenSize.x);
 
     const distAt = (u: Node<"vec2">): NodeF =>
-      perspectiveDepthToViewZ(depthTex.sample(u).r, p.near, p.far).negate();
+      perspectiveDepthToViewZ(depthTex.sample(u).r, float(p.near), float(p.far)).negate();
 
     const cocAt = (d: NodeF): NodeF =>
       d.sub(p.focusDistance).abs().div(p.focalRange.max(0.01)).clamp(0, 1).mul(p.maxCoc);
 
     const radius = cocAt(distAt(uvN));
-    const acc = sceneTex.sample(uvN).toVar();
+    const acc = (base ?? sceneTex.sample(uvN)).toVar();
     const wsum = float(1).toVar();
     for (const [dx, dy] of DISC) {
       const off = vec2(dx * 1.0, dy).mul(vec2(aspect, 1)).mul(radius);
@@ -196,9 +208,29 @@ export class SpeedEffects {
   /** Focal range during the dive — shallow focus is the point. */
   diveRange = 7;
   cruiseRange = 60;
+  /** FOV mapping (degrees) — the same speed→width law the chase camera
+   *  uses, exposed so scenes without the chase rig agree with it. */
+  fovBase = 55;
+  fovGain = 0.9; // deg per m/s above cruise
+  fovRef = 9; // m/s — cruise
 
   private speedSm = 0;
   private diveSm = 0;
+
+  /** Smoothed airspeed the effects are currently keyed to. */
+  get airspeed(): number {
+    return this.speedSm;
+  }
+
+  /** Dive signal 0..1 (tucked AND falling), smoothed. */
+  get dive(): number {
+    return this.diveSm;
+  }
+
+  /** The FOV (degrees) for the current smoothed airspeed. */
+  get fov(): number {
+    return this.fovBase + this.fovGain * Math.max(0, this.speedSm - this.fovRef);
+  }
 
   /**
    * Read the published FlightState and settle the uniforms. `focusDist` is

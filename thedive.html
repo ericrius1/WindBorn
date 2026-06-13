@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Dive — Stillwater</title>
+    <meta
+      name="description"
+      content="The centerpiece, scored: entry angle, entry speed, and the lead on a moving fish combined into a catch probability — and a caught fish whose weight then changes the flight home."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-thedive"></div>
+      <div class="hero-title">
+        <h1>The Dive</h1>
+        <p class="subtitle">
+          The plunge already looks right — the tuck, the crown of spray, the
+          submarine instant, the breach. This post answers the question the
+          spectacle dodges: did it <em>work?</em> A dive is graded on entry angle,
+          entry speed, and the lead on a moving fish, and a caught fish then makes
+          the bird fly home heavier. Click to take the stick and dive a real
+          fluid window.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        The dive is the whole reason Fish Hawk exists. Everything else — the
+        <a href="/skin.html">water</a>, the <a href="/osprey.html">bird</a>, the
+        <a href="/forces.html">flight model</a>, the
+        <a href="/simbubble.html">fluid sim</a>, the
+        <a href="/breach.html">breach</a> — was built so that one moment could
+        feel like dropping out of the sky into a real lake. By
+        <a href="/firstcatch.html">the first catch</a> it already <em>looked</em>
+        complete. But looking right and being a game are different things. A
+        flight sim where every plunge succeeds is a screensaver; a game needs a
+        dive that can be done well or badly, and a way to tell the difference that
+        isn't a number floating over the fish. So this post adds the scoring: the
+        small piece of math that turns a beautiful animation into a skill.
+      </p>
+      <p>
+        The design rule from <a href="/loop.html">the loop</a> still holds — no
+        fail states. A missed dive is not a punishment; it is a half-minute of
+        daylight spent and a fish that swims off. The scoring exists to make a
+        <em>good</em> dive feel earned, not to make a bad one hurt. That points
+        the whole design at one number: a catch probability, computed at the
+        instant the talons hit the water, from things the player actually
+        controls.
+      </p>
+
+      <h2><span class="kicker">Step 1 · Four factors, one product</span>What makes a strike land</h2>
+      <p>
+        Watch a real osprey and the same four things decide every dive. The
+        <strong>angle</strong>: it commits on a steep line, around sixty to
+        seventy degrees below horizontal — shallow and it skips off the surface,
+        dead vertical and it can't adjust for the fish's motion. The
+        <strong>speed</strong>: ospreys hit the water at fifteen to thirty meters
+        per second; too slow and there isn't enough punch to reach a fish a meter
+        down, too fast and the strike blows past and stuns itself. The
+        <strong>aim</strong>: the horizontal miss between the talons and the fish,
+        measured against the talon reach — and because the fall takes real time,
+        you have to aim where the fish <em>will be</em>, not where it is. And the
+        <strong>depth</strong>: a fish at the surface is a gift, a fish three
+        meters down needs a fast, true line.
+      </p>
+      <p>
+        The crucial design choice is how to combine them. Not a sum — a
+        <em>product</em>. <code>p = aim<sup>1.3</sup> · speed<sup>0.9</sup> ·
+        angle<sup>0.7</sup> · depth<sup>0.6</sup></code>. A sum would let a perfect
+        line at walking speed average out to a decent score; a product says a dive
+        fails if <em>any</em> factor is bad, which is exactly how diving feels.
+        Perfect aim at no speed still misses. The exponents just say which factor
+        matters most: aim first, then speed, then angle, then depth. The figure
+        below flies a scripted dive over a small fluid window and breaks the
+        probability into its four bars live — turn the vigor down and watch the
+        speed bar collapse and drag the whole product to zero, no matter how
+        clean the line.
+      </p>
+      <div data-demo="scoring"></div>
+      <aside class="note">
+        <span class="note-label">Aside · Leading a moving fish</span>
+        <p>
+          The lead is the part that feels like real hunting. A fish cruising at a
+          meter a second is half a meter away by the time a dive from eight meters
+          up arrives — so the dive has to be aimed ahead of it. We compute the
+          time-to-impact as a simple ballistic fall (height equals initial
+          down-speed times time plus half g times time squared, solved for time),
+          then project the fish forward at its current velocity. Aim there. It is
+          the same arithmetic a quarterback uses, and the same a fish hawk's brain
+          does without arithmetic at all.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · The catch has weight</span>Carrying it home</h2>
+      <p>
+        A clean dive earns a fish, and the fish is not just a point scored — it is
+        a load. An osprey can lift maybe nine hundred grams, and you feel every
+        gram of it on the way up. So a successful catch rolls a fish with a mass
+        (cleaner, steeper dives tend to land bigger ones), and that mass feeds a
+        small <code>carryEffect</code>: a heavier fish costs the bird up to a
+        fifth of its usable flap power and adds a steady downward tug, half a
+        meter per second squared to nearly one. The bird turns the catch head-first
+        to cut drag, the way a real one does, but the climb home still sags. This
+        is what makes the dive a decision and not a reflex: a fat trout is a real
+        meal that knocks down your hunger, and it is also a real anchor between you
+        and the nest.
+      </p>
+      <p>
+        The figure isolates that. The same scripted dive catches a fish, then
+        climbs away — slide its weight from nothing to a full load and watch the
+        ascent flatten while the readout prints the two numbers
+        <code>carryEffect</code> hands the flight step. Nothing here is a special
+        case in the flight model: the carry is just extra sink and scaled effort
+        fed into the same point-mass integrator the
+        <a href="/forces.html">forces</a> post built. The bird doesn't know it's
+        carrying dinner; it only knows it's heavier.
+      </p>
+      <div data-demo="carry"></div>
+      <p>
+        Put the two together in the hero and the dive becomes the loop's tense
+        center. You <a href="/hunt.html">read the water</a> for a fish worth
+        taking, line up a steep fast pass, lead the cruise, and hit the
+        <a href="/coupling.html">real sim window</a> talons-first — and a beat
+        later you know, from the splash and a single word, whether you're climbing
+        out empty or laboring home with a fish. The probability is invisible; the
+        spray and the weight tell you everything. Next, the place all that
+        laboring is <em>for</em>: <a href="/nest.html">the nest</a>, and the home
+        that grows from a handful of catches carried home across a handful of
+        days.
+      </p>
+    </main>
+    <footer>
+      <p>
+        <a href="https://github.com/ericrius1/stillwater">Source on GitHub</a>
+      </p>
+    </footer>
+    <script type="module" src="/src/thedive.ts"></script>
+  </body>
+</html>

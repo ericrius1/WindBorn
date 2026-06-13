@@ -37,6 +37,9 @@ export interface InterludeCtxOptions {
   fov?: number;
   near?: number;
   far?: number;
+  /** Internal render resolution as a fraction of the canvas; raymarch-heavy
+   *  heroes run at ~0.7 and let CSS stretch the difference. */
+  renderScale?: number;
 }
 
 export interface InterludeCtx {
@@ -52,13 +55,13 @@ export interface InterludeCtx {
 }
 
 export async function interludeCtx(el: HTMLElement, options: InterludeCtxOptions = {}): Promise<InterludeCtx> {
-  const { aspect = 0.56, fov = 52, near = 0.1, far = 2600 } = options;
+  const { aspect = 0.56, fov = 52, near = 0.1, far = 2600, renderScale = 1 } = options;
   const shell = new Shell(el, aspect);
   const renderer = new WebGPURenderer({ canvas: shell.canvas, antialias: true });
   await renderer.init();
   renderer.toneMapping = ACESFilmicToneMapping;
-  const width = shell.canvas.width;
-  const height = shell.canvas.height;
+  const width = Math.round(shell.canvas.width * renderScale);
+  const height = Math.round(shell.canvas.height * renderScale);
   renderer.setSize(width, height, false);
 
   const scene = new Scene();

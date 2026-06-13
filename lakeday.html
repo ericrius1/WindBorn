@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>A Day at the Lake — Stillwater</title>
+    <meta
+      name="description"
+      content="Season 3's playable milestone: one whole day on the world clock — dawn mist, a noon weather front, the dusk hatch, and a moonlit night — flown free, with the full procedural soundscape, in a valley that finally lives."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-lakeday"></div>
+      <div class="hero-title">
+        <h1>A Day at the Lake</h1>
+        <p class="subtitle">
+          One whole day, conducted by a single clock. Dawn mist burns off the
+          glass, a weather front crosses at noon, the dusk hatch turns the
+          surface to rings, and the moon comes up over black water — flown free
+          the whole way, with the first sounds the lake has ever made. Click to
+          listen, then take the stick.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        The last two milestones were honest graybox. <a href="/firstflight.html">First
+        Flight</a> gave the bird a body and a sky to fly in; <a href="/firstcatch.html">The
+        First Catch</a> gave it a hunt in a real valley. Both were also, by
+        their own admission, empty: a placeholder dawn that never moved, no
+        weather, no other life, and not a single sound. Season 3 was the season
+        of filling the world in, and this milestone is the proof that it filled
+        — not a slideshow of features, but one continuous day you can fly from
+        first light to moonrise. The thesis is severe and it is the whole game:
+        <em>the world runs on a clock, and everything subscribes to it.</em>
+        Nothing here is scripted to a timeline. There is one number — the hour —
+        and the sun, the fog, the fish, the insects, the music, and the color of
+        the water are all just functions of it.
+      </p>
+
+      <h2><span class="kicker">Step 1 · One hour, everywhere</span>The clock as the only knob</h2>
+      <p>
+        Start with the sky, because the sky keeps the time. <a href="/air.html">The
+        Color of Air</a> derives the sun's direction and the day's palette
+        straight from the clock hour; <a href="/mist.html">Morning Mist</a> adds
+        the dawn fog that thickens before sunrise and burns off as the hour
+        climbs; <a href="/clouds.html">The Cloud Layer</a> drifts cumulus on the
+        same wind the bird rides; <a href="/night.html">The Night Shift</a>
+        brings up a moon on a real path and a star field once the sun is gone.
+        None of those modules talk to each other. They each read
+        <code>clock.hour</code> and answer independently, and the result agrees
+        because they are all describing the same sun.
+      </p>
+      <p>
+        The same is true below the waterline. The <a href="/fish.html">schooling
+        fish</a> read the hour for their appetite — listless at midday, ravenous
+        at the <a href="/hatch.html">dusk hatch</a> — and a single function,
+        <code>hatchIntensity(hour)</code>, decides how hard the whole food chain
+        is feeding. So building "the day" is not orchestration; it is
+        subscription. One module gathers every subscriber, reads the hour once
+        per frame, and pushes it into all of them. Below, that whole machine
+        runs with a scrub bar where the player would be: grab the hour and park
+        the day at any minute — watch the sun swing, the fog thin, the fish wake
+        for the hatch, the moon rise — or let go and let it sweep.
+      </p>
+      <div data-demo="conductor"></div>
+      <aside class="note">
+        <span class="note-label">Aside · Why a day is ten minutes</span>
+        <p>
+          The clock has a <code>dayLength</code> in real seconds — the hero runs
+          a ten-minute day by default, and the slider lets you stretch it to
+          twenty or crush it to two. Ten minutes is a deliberate compromise: long
+          enough that dawn and dusk feel like transitions rather than a strobe,
+          short enough that a reader who came to fly sees the whole arc without
+          committing an afternoon. The real game will run days far longer and let
+          you sleep through the dark hours at the nest, but the milestone's job is
+          to show the <em>cycle</em>, so it spins the cycle fast.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · The front crosses</span>Weather that arrives over minutes</h2>
+      <p>
+        A day is not just a smooth ramp of light; weather walks across it.
+        <a href="/weather.html">Weather Fronts</a> is a small state machine with
+        three moods — calm, breezy, storm — but the trick is that it never
+        snaps. Force a state and every quantity it owns eases toward its new
+        target on its own time constant: the wind shifts over a few seconds, the
+        sky greys over nine, the rain arrives fast because a squall line is a
+        wall. The machine writes the one shared wind field, so when the front's
+        wind builds you can <em>watch</em> it: whitecaps break on the lake, the
+        cloud layer thickens overhead, and the rain falls as thousands of honest
+        <code>rain</code> events on the disturbance bus — each one a ring the
+        surface answers, each one a patter the audio will answer too.
+      </p>
+      <p>
+        In the hero, this is scheduled rather than random: the day's front is
+        level design. A breeze builds after one o'clock, the squall line crosses
+        mid-afternoon, and the sky is rinsed clean in time for the hatch — so
+        the day has a shape, a middle act with some drama in it, instead of dice.
+        Below, the machine is yours to drive directly. Punch calm, breezy, storm
+        in any order and watch every value chase its target at its own pace —
+        the wind quick, the overcast slow, the rain a wall that arrives and
+        leaves.
+      </p>
+      <div data-demo="front"></div>
+
+      <h2><span class="kicker">Step 3 · The dusk chain</span>The hatch, the rises, the swallows</h2>
+      <p>
+        Dusk is the event the whole ecosystem is built to deliver, and it is the
+        clearest proof that nothing here is faked. As the hour crosses into
+        golden light, <code>hatchIntensity</code> climbs and the chain turns on
+        in order: mayflies rise off the warm surface, the fish rise to <em>them</em>
+        — each rise stamping a ring on the bus, exactly the rings the
+        <a href="/firstcatch.html">hunt</a> reads — and the swallows wake to skim
+        the same hatch, their wingtips writing their own faint lines on the
+        water. <a href="/dusk.html">The Dusk Event</a> assembled this chain;
+        here it simply runs as one strand of a day that happens to be passing
+        through evening. Below, scrub the dusk window and watch the food chain
+        switch on link by link, or let it play and loop.
+      </p>
+      <div data-demo="dusk"></div>
+      <aside class="note">
+        <span class="note-label">Aside · The first sounds</span>
+        <p>
+          This is also the milestone where the lake first makes noise, and it is
+          all synthesized live — no recorded clips anywhere. <a href="/rush.html">The
+          Sound of Speed</a> filters noise banks whose cutoff and gain track the
+          bird's live airspeed, so a dive screams and a glide hisses;
+          <a href="/watersong.html">What Water Says</a> turns every splash and
+          rise on the bus into a burst of filtered noise scaled by the event's
+          energy; <a href="/score.html">The Adaptive Score</a> crossfades music
+          layers keyed to altitude, hour, and weather. One call wires all of it
+          to the spine. Because browsers refuse audio without a gesture, the hero
+          stays silent until you click "listen" — and because everything ties to
+          the disposable scene, all of it goes quiet the instant you scroll the
+          demo offscreen. No sound survives teardown.
+        </p>
+      </aside>
+
+      <p>
+        That's the milestone: a whole day, dawn to night, weather and hatch and
+        moonlight and sound, flown free — the verb <em>witness</em>, playable
+        end to end. And for the first time a milestone is not apologizing for
+        what's missing. The valley lives. What it lacks now is not systems but
+        <em>polish</em>: the day is rendered honestly but flatly, with no color
+        grade tying the image to the hour, no bloom on the low sun, no depth of
+        field smearing the world past the wingtip in a dive, no lens droplets
+        after a breach. And it is still a sandbox, not a game — there is no
+        hunger, no nest, no reason to fly beyond the flying. Season 4 closes
+        both gaps. First a cinematic pass grades every hour and bends the light;
+        then every system on this page and the two before it converges into one
+        lake with a loop, a hunt, and a home — the game the whole project has
+        been building toward. Season 3 was <em>witness</em>. Season 4 is the
+        <em>game</em>.
+      </p>
+    </main>
+    <footer>
+      <p>
+        <a href="https://github.com/ericrius1/stillwater">Source on GitHub</a>
+      </p>
+    </footer>
+    <script type="module" src="/src/lakeday.ts"></script>
+  </body>
+</html>

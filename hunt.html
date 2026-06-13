@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Hunt — Stillwater</title>
+    <meta
+      name="description"
+      content="Spotting a fish the way an osprey does — by reading glints, cruising shadows, and rise rings on the surface — with not a single marker on the screen. The ecosystem is the HUD."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-hunt"></div>
+      <div class="hero-title">
+        <h1>The Hunt</h1>
+        <p class="subtitle">
+          A real osprey has no minimap. It finds fish by sight, from sixty meters
+          up, reading the surface for the few things that betray a fish: a glint,
+          a shadow, a rising ring. Fish Hawk refuses markers for the same reason —
+          the lake already tells you everything, if you learn to look. Click to
+          take the stick and read the water.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        The most tempting thing to build, the moment you have <a href="/loop.html">a
+        reason to fish</a>, is a marker. A little diamond over each fish, a
+        distance number, a "press to dive" prompt. It would work, and it would
+        quietly ruin the game — because the instant the screen tells you where the
+        fish are, you stop looking at the lake, and the whole reason to render a
+        living surface evaporates. So Fish Hawk has a hard rule that shapes this
+        entire post: <strong>no UI markers, ever.</strong> The hunt happens
+        entirely in the world. And it can, because three seasons of work already
+        made the surface honest. The <a href="/alive.html">ecosystem</a> doesn't
+        need a HUD layered on top of it. It <em>is</em> the HUD.
+      </p>
+      <p>
+        That sounds like a renunciation, but it's really an inheritance. Every cue
+        a real fisher reads is something the simulation already produces, for free,
+        because the physics that make it produce them are the same physics the
+        rest of the game runs on. We just have to teach the game to read its own
+        water the way the player will — so it can lean the camera a hair, warm the
+        music a touch, never more — and otherwise get out of the way.
+      </p>
+
+      <h2><span class="kicker">Step 1 · Glint, shadow, ring</span>The three tells</h2>
+      <p>
+        There are exactly three ways a fish gives itself away from above, and each
+        is a real optical or behavioral fact the world already simulates. A
+        <strong>glint</strong>: a fish cruising in the top meter or two of clear
+        water catches the sun and throws a bright specular flash off its flank —
+        the <a href="/fish.html">schooling fish</a> already emit these. A
+        <strong>shadow</strong>: a fish too deep to glint still drags a dark,
+        moving shape across the lit lakebed, and a <em>fast</em> cruiser's shadow
+        is readable even when the fish itself is not. And a <strong>rise</strong>:
+        a feeding fish breaks the surface to take a <a href="/hatch.html">mayfly</a>
+        and leaves an expanding ring — the loudest tell of all, because it says
+        <em>this fish is here, near the top, feeding, right now.</em> Rises stamp
+        themselves onto the same <a href="/firstcatch.html">disturbance bus</a>
+        the splash and the wake use, so they're already first-class events.
+      </p>
+      <p>
+        The catch — the thing that makes spotting a <em>skill</em> — is that the
+        surface itself decides which tells are legible. On glass-calm water a
+        glint is a beacon. Put a breeze on the lake and the chop scatters the
+        specular highlight first: glints frost over, and you're left reading the
+        slower shadows and the rings, which a little wind can't hide. The figure
+        below is exactly that. Orbit a school in clear water, then crank the wind:
+        watch the readout's glint count collapse as the chop comes up, while the
+        rises keep ringing through. Learning when the water will and won't show you
+        a fish <em>is</em> the hunting skill, and it's all physics, no rules.
+      </p>
+      <div data-demo="telegraph"></div>
+      <aside class="note">
+        <span class="note-label">Aside · How ospreys actually hunt</span>
+        <p>
+          Ospreys hover or quarter slowly at twenty to forty meters, head angled
+          straight down, and they really do read the surface for exactly these
+          cues — which is why they fish best in calm conditions and clear water
+          and go hungry in a chop. Their eyes carry a deep central fovea and oil
+          droplets that cut surface glare, the biological version of a polarizing
+          filter. We can't give the player a fovea, so we give them the next best
+          thing: a lake whose tells obey the same rules a real osprey's prey
+          obeys, and the patience the bird's own anatomy enforces.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · Attention, not a marker</span>What the game is allowed to do</h2>
+      <p>
+        If the game can't draw on the fish, what <em>can</em> it do to keep the
+        hunt fair? It can have an opinion, and let that opinion gently bias the
+        feel without ever surfacing as a label. The hunt logic scores every
+        visible fish on two axes — how strongly the surface is telegraphing it
+        right now (glint, shadow, or rise, scaled by the chop) and how good a dive
+        it would be (close enough to reach, shallow enough to strike) — and
+        combines them into a single <em>worth</em>. The best chance, if there is
+        one worth taking, is allowed to do precisely two things: lean the chase
+        camera a few degrees toward it, the way your own head would turn, and warm
+        the music. That's the entire "targeting system."
+      </p>
+      <p>
+        The figure below makes that invisible opinion visible, just so you can
+        confirm it's honest. A soft halo drifts to whatever the scorer thinks is
+        the best chance — and then you can toggle it off. With the assist gone, the
+        fish are exactly as findable, because the assist was never information; it
+        was only a lean, the same lean the hero up top applies to the camera. The
+        scoring is also what the <a href="/thedive.html">dive</a> will read to
+        decide a strike's odds, and what the audio reads to know when to lift. One
+        small function, no pixels spent on the fish.
+      </p>
+      <div data-demo="attention"></div>
+      <p>
+        So the hunt is reading, not aiming: learn the water, wait for a tell you
+        can trust, and commit. The hero lets you do exactly that — fly the bay at
+        the dusk hatch, when the rings are everywhere and the light is going, and
+        find a fish with nothing but your eyes and a camera that turns its head
+        when you do. What you do next — the tuck, the fall, the talons-first hit
+        timed to where the fish <em>will be</em> — is <a href="/thedive.html">the
+        dive</a>, and it is where the whole project has been pointing.
+      </p>
+    </main>
+    <footer>
+      <p>
+        <a href="https://github.com/ericrius1/stillwater">Source on GitHub</a>
+      </p>
+    </footer>
+    <script type="module" src="/src/hunt.ts"></script>
+  </body>
+</html>

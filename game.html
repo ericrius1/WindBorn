@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>Fish Hawk — Stillwater</title>
+    <meta
+      name="description"
+      content="The game. Fifty-some essays converge on one mountain lake: soar the wind, read the water for fish, dive a scored strike, carry the catch home to a growing nest, and witness the day turn. Title screen, photo mode, settings, and the credits for the whole project."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-game"></div>
+      <div class="hero-title">
+        <h1>Fish Hawk</h1>
+        <p class="subtitle">
+          This is the whole project, playable. An osprey on a glacial lake: soar,
+          spot, dive, feed, build, witness — every verb the payoff of a series, all
+          running in one frame at once. Press <em>Begin</em>, take the stick, and
+          fly. There is no way to lose, only a day to spend and a nest to grow.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Everything pointed here. Fifty-some posts, four seasons, eleven series, and
+        a single goal underneath all of them: be an osprey on a mountain lake for
+        an evening. The window above is that goal, finished. It is not a mockup or a
+        sizzle reel — it is the same code every earlier post built, mounted whole
+        and wired together: the title screen, the play loop, pause and photo mode
+        and settings, and the credits that close the project. The "Play Fish Hawk"
+        button on the front page lands right here, on a bird you can fly.
+      </p>
+      <p>
+        What follows isn't really an essay; the teaching is done. It's a walk
+        through the assembly — how the five verbs each became a series, and how the
+        controller snaps them into one game — and then the credits, because a thing
+        this long owes a roll.
+      </p>
+
+      <h2><span class="kicker">Step 1 · Five verbs, eleven series</span>How the game is assembled</h2>
+      <p>
+        Fish Hawk is five verbs, and each is the payoff of the seasons that came
+        before. <strong>Soar</strong> is the <a href="/forces.html">flight
+        model</a> riding on <a href="/cirque.html">the Basin</a>: a point-mass bird
+        where lift
+        lives in the landscape, thermals off sun-warmed scree and ridge lift on
+        windward slopes, all read from the one wind field. <strong>Spot</strong> is
+        <a href="/hunt.html">the hunt</a> drawing on <a href="/fish.html">Alive</a>:
+        no markers, ever — you read glints, shadows, and the rings of a
+        <a href="/hatch.html">rise</a>, and the game's only assist is to lean the
+        camera a few degrees toward a good chance. <strong>Dive</strong> is the
+        centerpiece, <a href="/thedive.html">scored</a> on
+        <a href="/forces.html">flight</a> and dropped into
+        <a href="/simbubble.html">the Splash</a>'s real fluid window, with
+        <a href="/breach.html">Under</a>'s submarine instant in the middle.
+      </p>
+      <p>
+        <strong>Feed and build</strong> is <a href="/loop.html">the loop</a> and
+        <a href="/nest.html">the nest</a>: hunger that creeps, daylight you spend,
+        and a home that grows a few sticks at a time on the
+        <a href="/lakebed.html">Basin</a>'s north-shore snag. <strong>Witness</strong>
+        is <a href="/air.html">Air &amp; Light</a> and
+        <a href="/fieldnotes.html">photo mode</a>: a world that keeps time — dawn
+        mist burning off glass water, the dusk hatch, weather fronts, moonrise — and
+        a journal that fills itself with the moments you fly through. Holding all of
+        it together is <a href="/skin.html">the Mirror</a>'s water, the
+        <a href="/echo.html">Ear</a>'s procedural soundscape synthesized from your
+        own airspeed, and the <a href="/grade.html">Glass &amp; Grain</a> post stack
+        grading every frame to the hour.
+      </p>
+      <p>
+        The controller itself is small — almost boring, which is the point. It's a
+        state machine with three phases (title, playing, paused) and a few overlay
+        panels, wrapped around the pieces every post already built. It owns the
+        world clock while it runs, advances the <a href="/loop.html">game state</a>
+        each frame, grades every dive, leans the camera toward fish, grows the nest
+        when you feed there, freezes time for <a href="/fieldnotes.html">a
+        photo</a>, and rolls the day over when you roost after dark. Roosting at the
+        nest as the light goes advances the day; a few days and the brood is in and
+        the credits are yours. The figure below is that exact controller, mounted a
+        second time at miniature size on a throwaway save — same code path as the
+        hero, just a smaller frame.
+      </p>
+      <div data-demo="controller"></div>
+      <aside class="note">
+        <span class="note-label">Aside · The whole budget, one more time</span>
+        <p>
+          The hero runs the medium preset from <a href="/reckoning.html">the
+          reckoning</a>: clouds present but lean, the ecosystem full enough to
+          telegraph fish, the fluid window at full resolution, and the complete
+          post stack — grade, bloom, speed, wet lens, photo overlays. That's all
+          of it, sharing one sixteen-millisecond frame, holding sixty on an
+          M-series laptop. Drop to low in Settings for a slower machine; nothing
+          breaks, the sky just goes flat and the school thins. Every gram of
+          detail is somewhere you can turn it down.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · The roll</span>Credits</h2>
+      <p>
+        A game made of fifty-some essays owes every one of them a line. The credits
+        below are built from the same registry the site navigation reads, grouped
+        by season exactly as the front page is, so they can never drift out of sync
+        with what actually shipped. Every series is here, and every post within it
+        is a link — the whole project, from the first <a href="/skin.html">Fresnel
+        term on the water</a> to this game, in one scroll. In the playable hero,
+        the same roll lives behind the <em>Credits</em> button on the title and
+        pause screens.
+      </p>
+      <div data-demo="credits"></div>
+      <p>
+        That's Stillwater: part blog, part build log, part game, converging on one
+        osprey over one lake. The bird at the top of this page is the argument that
+        the whole thing was worth making — that a year of essays about Fresnel and
+        flight models and shallow-water equations and procedural wind was, all
+        along, about this: a quiet evening, a glass dawn, and the small clean shock
+        of dropping out of the sky into real water and coming up with a fish. Thanks
+        for flying it. The lake is yours to wander.
+      </p>
+    </main>
+    <footer>
+      <p>
+        <a href="https://github.com/ericrius1/stillwater">Source on GitHub</a>
+      </p>
+    </footer>
+    <script type="module" src="/src/game.ts"></script>
+  </body>
+</html>

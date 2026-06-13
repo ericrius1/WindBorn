@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Loop — Stillwater</title>
+    <meta
+      name="description"
+      content="The game's skeleton: hunger, daylight, day count, and a localStorage save file — the small layer of consequence that turns a flight sim into a game with no fail states."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-loop"></div>
+      <div class="hero-title">
+        <h1>The Loop</h1>
+        <p class="subtitle">
+          Everything the lake does is already built. What it lacks is a reason to
+          fly: hunger that creeps, daylight that runs out, days that add up, and
+          a save file to carry them between. Here is that skeleton — and the rule
+          that a missed dive costs an hour of light, never an hour of progress.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        After three seasons, Stillwater is a world that moves on its own. A
+        <a href="/lakeday.html">whole day</a> runs from dawn mist to moonrise; an
+        <a href="/firstcatch.html">osprey hunts</a> in a real valley; the
+        <a href="/dusk.html">food chain</a> turns on at golden hour. You can fly
+        all of it, and for a while that is enough. But fly it long enough and a
+        question surfaces that no shader answers: <em>why?</em> Why dive, when a
+        missed strike costs nothing and a clean one earns nothing? Season 4's
+        last series, the one the whole project has been climbing toward, is the
+        answer — and it is the smallest amount of game that makes the world feel
+        like one. This first post builds the skeleton: the few numbers that turn
+        flying into <em>being an osprey for a few days</em>.
+      </p>
+      <p>
+        The design constraint is severe and it shapes everything: <strong>no fail
+        states.</strong> Fish Hawk is <em>A&nbsp;Short&nbsp;Hike</em>, not a
+        survival game. You cannot lose. A missed dive is not a penalty; it is a
+        spent half-hour of daylight, and there are plenty of half-hours in a day.
+        So the state has to nag without punishing — it has to give you a reason
+        to fly toward a fish without ever making you dread the water. That balance
+        lives in exactly four numbers.
+      </p>
+
+      <h2><span class="kicker">Step 1 · Four numbers and a save</span>The state machine</h2>
+      <p>
+        Here is the entire game model, and you can play it with no graphics at
+        all. <strong>Hunger</strong> runs from zero (full) to one (starving); it
+        creeps up while you fly — roughly four minutes of flying from full to the
+        edge — and a caught fish knocks it back down. <strong>Daylight</strong>
+        is not stored anywhere: it <em>is</em> the world clock. A function reads
+        <code>clock.hour</code> and reports how much usable light is left, from
+        first glow around five to last light at nine in the evening; spending
+        time is spending light. <strong>Day count</strong> increments when you
+        roost for the night at the nest. And the <strong>nest stage</strong>
+        grows as you feed at home — the subject of <a href="/nest.html">a later
+        post</a>. All four serialize to <code>localStorage</code> under
+        <code>"fishhawk:save"</code>, so a day can end and the next one begin.
+      </p>
+      <p>
+        Below is that model, live and in your hands — no scene, just the state.
+        Fly an hour, take a dive, eat, sleep, and reload the page: the save
+        survives. Note that the dive button spends daylight whether or not you
+        imagine it landed. That asymmetry — time always spent, fish sometimes
+        caught — is the loop's whole tension, and it never crosses into
+        punishment.
+      </p>
+      <div data-demo="statemachine"></div>
+      <aside class="note">
+        <span class="note-label">Aside · Why hunger, and not health</span>
+        <p>
+          Hunger is a gentler master than a health bar. A health bar implies
+          damage, and damage implies an enemy and a death. Hunger just rises, and
+          the worst it does is make the next meal more welcome. Even fully
+          starved, the osprey flies exactly as well — the only thing that changes
+          is the word in the corner of the screen and a faint shift in the
+          music's mood. The state is a reason to fish, never a threat. That is
+          the difference between a game you can lose and a game you can only
+          spend an evening inside.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · Daylight as the budget</span>The clock you spend</h2>
+      <p>
+        If a missed dive can't cost progress, what does it cost? Time. The day is
+        the resource, and the <a href="/air.html">world clock</a> that the sky,
+        the fog, and the fish already read is also the budget you draw down. The
+        figure below scrubs the day over the bay where the school lives: watch
+        the daylight readout fall as the hour climbs, and — just as importantly —
+        watch the <em>fish</em>. They are listless at midday and ravenous at the
+        <a href="/hatch.html">dusk hatch</a>, because their appetite is the same
+        <code>hatchIntensity(hour)</code> the ecosystem runs on. That coupling is
+        the strategy of the whole game: daylight is finite, and the hours when a
+        dive is most likely to pay are the hours the light is going. You learn,
+        without being told, to spend your best light on the rises.
+      </p>
+      <div data-demo="daylight"></div>
+      <p>
+        That is the loop: soar (spend stamina and light), spot (read the water),
+        dive (spend a chance at a fish), feed (answer the hunger), and across a
+        handful of days, build something at the nest. The hero up top flies that
+        cycle on its own so you can see the shape of it — a day rolling over, a
+        catch going down the hatch, the day count ticking up. Everything from here
+        is making each verb real. Next, the one that has no UI at all:
+        <a href="/hunt.html">spotting a fish</a> the way an osprey does, by
+        reading the surface, with not a single marker on the screen.
+      </p>
+    </main>
+    <footer>
+      <p>
+        <a href="https://github.com/ericrius1/stillwater">Source on GitHub</a>
+      </p>
+    </footer>
+    <script type="module" src="/src/loop.ts"></script>
+  </body>
+</html>

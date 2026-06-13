@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Grade — Stillwater</title>
+    <meta
+      name="description"
+      content="What a color grade actually is: tone curves derived from scratch, exposure and white balance on linear light, lift/gamma/gain on the display side, bloom for the sun glitter — every knob keyed to the world clock's sun elevation."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-grade"></div>
+      <div class="hero-title">
+        <h1>The Grade</h1>
+        <p class="subtitle">
+          Every system so far renders honest light. This series renders honest
+          film: a short chain of per-pixel functions between the scene and the
+          screen, keyed to the hour, that makes the lake feel filmed instead of
+          computed. Drag the hour — the look follows the sun.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Season four opens with a confession: Fish Hawk has been rendered, not
+        photographed. The <a href="/stillwater.html">lake</a> reflects what the
+        <a href="/air.html">sky</a> hands it, the sun dims honestly as it sets,
+        and yet a screenshot at golden hour looks like a simulation of golden
+        hour rather than a photograph of one. The difference is not in the
+        scene. It is in the four centimeters between a film camera's sensor and
+        the cinema screen — exposure, response curve, color timing — and games
+        earn it the same place film does: after the frame is rendered, one
+        function per pixel. This series builds that pass, and this post builds
+        its spine. By the end we will know exactly what a "color grade" is,
+        mathematically, and ours will read the same world clock as everything
+        else on the lake.
+      </p>
+
+      <h2><span class="kicker">Step 1 · The tone map</span>From unbounded light to a screen</h2>
+      <p>
+        Start with the only non-negotiable stage. Our renderer works in linear
+        HDR radiance: a pixel's value is proportional to light energy, and
+        light has no ceiling. The sun glint on a wave facet is easily twenty
+        times brighter than a white feather. The display, meanwhile, can show
+        0 to 1. Something must map one onto the other, and that something is a
+        <em>tone curve</em>. Scrub through the choices:
+      </p>
+
+      <div data-scrolly="grade-chain"></div>
+
+      <p>
+        The naive map is <code>min(c, 1)</code> — clamp. It is also the worst:
+        every value past 1 lands on the same white, so the glitter path, the
+        sun's halo, and the bright cloud rim merge into one dead plateau.
+        Reinhard's curve, <code>c / (1 + c)</code>, fixes the clipping by
+        compressing all of <code>[0, ∞)</code> into <code>[0, 1)</code> — but it
+        compresses everywhere, so the image goes flat and never actually
+        reaches white. The curve that behaves like film is an S: a
+        <em>toe</em> that eases shadows in, a near-linear middle, and a
+        <em>shoulder</em> that rolls highlights off gradually. We use the
+        standard rational fit
+        <code>(c·(2.51c + 0.03)) / (c·(2.43c + 0.59) + 0.14)</code> — the same
+        family as the renderer's built-in filmic curve. Stare straight down the
+        glitter path and switch curves; watch what happens to the facets around
+        the sun:
+      </p>
+
+      <div data-demo="tone-curves"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · Why film has a shoulder</span>
+        <p>
+          Photographic film responds to light logarithmically near its limits:
+          each doubling of exposure darkens the negative by a roughly constant
+          increment until the silver halide crystals saturate — gradually, not
+          all at once. The shoulder of the S-curve is that chemistry. Digital
+          sensors clip hard, which is why video that "looks digital" usually
+          means highlights that hit a wall. We are simulating the chemistry on
+          purpose.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · The knobs</span>Light on one side, paint on the other</h2>
+      <p>
+        The tone map splits the chain into two worlds, and every grading knob
+        belongs to exactly one of them. <strong>Before</strong> the curve,
+        values are still light, so gains behave physically.
+        <em>Exposure</em> is a single multiply, counted in stops:
+        <code>c · 2^stops</code>, one stop = twice the light, exactly like
+        opening a camera's aperture. <em>White balance</em> is a per-channel
+        gain — warm tilts red up and blue down — and applied here it behaves
+        like the sun actually changing color rather than like a tinted sticker
+        on the screen.
+      </p>
+      <p>
+        <strong>After</strong> the curve, values are paint: a bounded 0..1
+        signal that we may bend for taste. The classic three-way color
+        corrector is <em>lift / gamma / gain</em>, and it is one line:
+        <code>out = (gain · (c + lift · (1 − c)))^(1/gamma)</code>. Look at the
+        boundary behavior and the mystery dissolves — at <code>c = 0</code> the
+        formula returns <code>gain · lift</code>, so lift raises the floor
+        (shadows); at <code>c = 1</code> it returns <code>gain</code>, so gain
+        scales the ceiling (highlights); gamma is a power curve that pivots on
+        both endpoints and bends only the middle. Per-channel, that is six
+        dozen Hollywood looks in three vectors. <em>Contrast</em> rotates
+        values about a grey pivot, <code>(c − p)·k + p</code> with
+        <code>p ≈ 0.42</code> (18% scene grey after the sRGB transfer), and
+        <em>saturation</em> is just <code>mix(luma, c, s)</code> — sliding each
+        pixel along the axis between itself and its own grey. Every one of
+        those is a tiny function; here they all are on one frame:
+      </p>
+
+      <div data-demo="grade-knobs"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · Order is not negotiable</span>
+        <p>
+          Run saturation before the tone map and bright saturated colors blow
+          out unevenly per channel, shifting hue as they clip — sunset orange
+          turns yellow. Run exposure after it and you brighten paint, not
+          light: the S-curve's shoulder has already eaten the highlight detail
+          you were trying to reveal. Linear work on the linear side, display
+          work on the display side. Most "my grade looks cheap" bugs are
+          stages in the wrong order.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 3 · Bloom</span>What bright does to a lens</h2>
+      <p>
+        One physical effect refuses to stay inside its pixel. Point a real
+        camera at the sun's glitter path and light scatters in the lens body,
+        between the elements, even inside the eye — a halo spills out of every
+        bright source. Painters have faked it for centuries; renderers call it
+        <em>bloom</em>, and it is the single strongest "this was photographed"
+        cue we can add. The recipe: extract everything above a threshold
+        (in HDR, <em>before</em> tone mapping — brightness means something
+        there), blur it, add it back. The blur is a Gaussian, and Gaussians
+        have the property that makes this affordable: they are
+        <em>separable</em>. A 2-D Gaussian is the product of two 1-D ones, so
+        an N×N-tap blur becomes N taps horizontal plus N taps vertical — and
+        running the passes on progressively downsampled copies turns a
+        hundred-pixel halo into a handful of small blurs. Push the threshold
+        down and watch the lake catch fire; press the buffer button to see
+        exactly what the threshold extracted:
+      </p>
+
+      <div data-demo="bloom-glitter"></div>
+
+      <h2><span class="kicker">Step 4 · The hour key</span>A grade that tells time</h2>
+      <p>
+        A film gets one grade per scene, hand-timed by a colorist. Our scene is
+        a whole day. The honest move is the one the
+        <a href="/air.html">sky palette</a> already made: key everything to
+        <em>sun elevation</em>, not the wall-clock hour, so the look tracks the
+        light geometry that causes it. We define a handful of stops — deep
+        night, late twilight, blue hour, sunrise, golden hour, morning, midday
+        — each one a full settings object (exposure, temperature, contrast,
+        saturation, lift/gamma/gain triples, vignette, bloom drive), and
+        smoothstep-ease between neighbors so no boundary ever shows. Night
+        lifts the floor and drains color toward scotopic grey, the same
+        declared lie as the <a href="/night.html">night exposure boost</a>;
+        sunrise pushes warm gain against shadows that keep their blue; midday
+        gets out of the frame's way almost entirely, because the strongest
+        grade is the one you stop noticing. Let the day play:
+      </p>
+
+      <div data-demo="hour-key"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · A grade you can name is overtuned</span>
+        <p>
+          The temptation with a working grade is to crank it until every hour
+          looks like a movie poster. The discipline that survives playtesting
+          is the opposite: if a player can say "the game goes orange at
+          sunset", the gain triple is too hot. The stops above move exposure by
+          halves of a stop and saturation by fifteen percent — enough that
+          dawn <em>feels</em> different from noon, not enough that anyone can
+          point at why.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Onward</span>What this unlocks</h2>
+      <p>
+        We now own the frame after it is rendered: a chain that resamples
+        nothing and recolors everything, keyed to the same clock the
+        <a href="/air.html">sun</a>, the fish, and the
+        <a href="/score.html">score</a> already obey. The hero up top is the
+        whole post running live — grade and bloom following the hour, with the
+        amount slider as the before/after switch. But a chain that only
+        recolors is leaving the camera's best trick unused: a film camera
+        smears what moves, defocuses what it isn't looking at, and widens when
+        the world rushes in. Next post the chain starts <em>moving</em> pixels
+        — motion blur, radial streaks, and dive-depth focus, all driven by the
+        flight telemetry <a href="/joy.html">the joy pass</a> promised the
+        camera would someday read.
+      </p>
+    </main>
+    <footer>
+      <p>Stillwater — building Fish Hawk in public, one system at a time.</p>
+    </footer>
+    <script type="module" src="/src/grade.ts"></script>
+  </body>
+</html>

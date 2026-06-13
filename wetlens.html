@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Wet Lens — Stillwater</title>
+    <meta
+      name="description"
+      content="The dive transition rebuilt as a post-process: refracting droplets that bend the frame, a depth-keyed underwater color grade, and a meniscus band that magnifies the half-world below the waterline — all keyed to the same surface-crossing state machine."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-wetlens"></div>
+      <div class="hero-title">
+        <h1>The Wet Lens</h1>
+        <p class="subtitle">
+          The most violent thing that happens to Fish Hawk's camera is the moment
+          it goes through the lake. This post rebuilds that crossing as a function
+          of the rendered frame: droplets that refract, a filter that deepens with
+          every metre, and a waterline that bends the light as it sweeps past.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        The dive is the whole game in one second, and we have built it twice now.
+        <a href="/breach.html">The breach</a> assembled the physics — the plunge,
+        the submarine beat, the burst back into air — and
+        <a href="/lens.html">Crossing the Lens</a> built the optics the first way
+        anyone builds them: two quads parented to the camera, one tinted for the
+        air side and one for the water side, alpha-blended over whatever was
+        behind them. That works, and it shipped. But a quad can only ever paint
+        <em>over</em> the frame. It can darken a pixel, tint it, or hide it — it
+        cannot move it. And water on glass does exactly one thing a quad can't:
+        it <em>refracts</em>. A droplet is a tiny lens; the meniscus where the
+        waterline meets the housing is a bigger one. Now that
+        <a href="/speedsight.html">the speed pass</a> has taught us to treat the
+        rendered frame as a texture we can resample, the wet lens stops being a
+        sticker and becomes what it always physically was: a per-pixel function
+        of the image, sitting in the chain right where the
+        <a href="/grade.html">grade</a> already lives.
+      </p>
+
+      <h2><span class="kicker">Step 1 · Droplets</span>The frame is a texture we can bend</h2>
+      <p>
+        Start with the cheapest, most convincing piece: the beads of water left
+        clinging to the lens after a breach. A real droplet is a lens because it
+        is a bump — a little dome of water whose curved surface bends rays
+        passing through it. So we model each droplet as a <em>height field</em>:
+        a Gaussian bulb, <code>h = exp(−d²/r²)</code>, with a thin trailing ridge
+        where the bead has begun to slide. The optics then fall straight out of
+        the height. A surface tilted by a height field <code>h</code> deflects a
+        ray by an amount proportional to that surface's <em>slope</em>, the
+        gradient <code>∇h</code>. For our Gaussian that gradient is analytic —
+        <code>∂h/∂x = −2x/r² · h</code> — so each droplet contributes a small uv
+        offset <code>∇h · refraction</code>, and we sample the frame at
+        <code>uv + offset</code> instead of <code>uv</code>. Fourteen droplets,
+        three hashes each for position and size, reseeded the instant the camera
+        breaches. Where their slopes face the key light we add a glint; where
+        they're steep we bend the frame hardest. Push the refraction up and watch
+        the lake warp behind each bead:
+      </p>
+
+      <div data-demo="drop-refract"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · Slope is the whole trick</span>
+        <p>
+          It's tempting to think a droplet refracts because it's bright, or
+          because it's round. Neither is the cause — a flat film of water on glass
+          barely distorts anything, and a perfectly hemispherical droplet seen
+          dead-centre doesn't either. What bends light is the <em>change</em> in
+          surface height across a pixel, the gradient. That's why our droplets
+          distort most around their <em>edges</em>, where the dome falls away
+          steepest, and why the centre of a big bead stays almost clear. Model the
+          height, take the derivative, and the optics come for free.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · Two color worlds</span>A filter that deepens with depth</h2>
+      <p>
+        Above the surface the frame is graded by the hour. Below it, the water
+        itself is the colorist. We met the physics back in
+        <a href="/depths.html">Seeing the Bottom</a>: water absorbs light
+        exponentially with the distance it travels, and it does so unevenly —
+        long wavelengths first. Red is gone within a couple of metres, then
+        orange and yellow; blue-green outlasts everything, which is why depth
+        reads as that particular drained teal. As a post effect this is one
+        multiply per channel, keyed to how deep the <em>camera</em> sits:
+      </p>
+      <pre><code>filter = tint · exp(−depth · [k_r, k_g, k_b]),   k_r ≫ k_g &gt; k_b</code></pre>
+      <p>
+        with red's absorption coefficient several times the blue's. We layer a
+        second, gentler move on top — as colors drain, the survivors converge
+        slightly toward the medium's own teal, the scattering that fills deep
+        water with an ambient glow rather than pure darkness. The blend between
+        the air grade and the water grade rides the crossing's
+        <code>submergence</code>, a smoothed 0-to-1 that the state machine raises
+        the moment the lens dips under. And on the way in, a single dark gulp —
+        an exponential flash as the water closes over the glass — sells the
+        swallow. Scrub the camera's depth and watch the world lose its colors in
+        order:
+      </p>
+
+      <div data-demo="depth-grade"></div>
+
+      <h2><span class="kicker">Step 3 · The meniscus</span>Magnifying the half-world below the line</h2>
+      <p>
+        The hardest half-second is neither fully above nor fully below: it's the
+        instant the waterline crosses the lens, when the frame is split and the
+        surface itself bows across the glass. Where water meets the housing it
+        climbs into a curved lip — the <em>meniscus</em> — and that lip acts as a
+        cylindrical lens, magnifying the strip of world just beneath the line and
+        smearing a dark band along it. We need three things: to know where the
+        line is, to bend the frame inside the band, and to darken the band's body
+        with a brightened core where the film lenses the light through.
+      </p>
+      <p>
+        Finding the line reuses the exact projection
+        <a href="/lens.html">Crossing the Lens</a> derived — one point on the
+        water surface, 1.5&nbsp;m ahead of the camera, projected to screen space
+        gives the waterline's height; a pair of sliding sines wobble it as waves
+        slide across the glass. Inside the band, just below that line, we push
+        the sample coordinates toward the line — compressing the frame upward,
+        which is exactly what magnification looks like as a resample. Then we lay
+        the dark meniscus body over it, <code>exp(−g²)</code> in the band
+        coordinate <code>g</code>, with a tight bright core where the lip focuses
+        the sky. Hold the lens right at the surface and let the line drift across
+        the band; the strip below it swells:
+      </p>
+
+      <div data-demo="meniscus-band"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · Why one comparison decides everything</span>
+        <p>
+          Every part of this effect — which grade to apply, where the band sits,
+          when to seed droplets — keys off a single number: the camera's height
+          minus <code>waterHeightAt</code> under it, the same query every floating
+          body on the lake already makes. That's deliberate. If the housing used
+          its own idea of where the surface was, the colour would flip a frame
+          before or after the line you can see, and the eye catches that instantly.
+          One source of truth means the moment the look changes is exactly the
+          moment the rendered surface crosses the lens. No drift, no second
+          opinion.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 4 · The crossing</span>One dive, every stage handing off</h2>
+      <p>
+        Now stack them in the only order that works. The wet lens is a
+        <em>resampler</em> — it moves pixels — so it runs on the linear frame,
+        before any colour work, alongside the speed pass's blur and DOF. That
+        placement is the payoff of building the whole series as a chain: a
+        droplet that bends the frame samples colour that hasn't been graded yet,
+        so when the hour grade and the tone map run downstream, the refracted tap
+        and its surroundings get coloured together. Per-pixel grading commutes
+        with resampling; do the bending first and the seam never shows. Watch one
+        dive run the full circuit — descend and the filter deepens, hold at depth
+        for the full underwater world, breach and the band sweeps up the frame as
+        the droplets seed and the colours drain back to air. Scrub it slowly to
+        catch each hand-off:
+      </p>
+
+      <div data-demo="the-crossing"></div>
+
+      <h2><span class="kicker">Onward</span>What this unlocks</h2>
+      <p>
+        The chain now owns the camera through the one transition that used to
+        force a cut: it grades by the hour, smears and focuses for speed, and
+        refracts through water without a single quad glued to the lens. The hero
+        up top is the whole post running live — plunge, hold, breach — through
+        grade, bloom, and the wet lens at once. That closes the cinematic loop
+        for <em>playing</em> the game. But Fish Hawk has a fifth verb we've barely
+        touched: not soaring or spotting or diving, but <em>witnessing</em> — the
+        slow pleasure of stopping the world and looking at it. The last post in
+        this series hands the player the camera itself: freeze the clock, drift a
+        free lens through the frozen moment, line it up against the rule of
+        thirds, and fill a journal that earns its own entries. Next, field notes.
+      </p>
+    </main>
+    <footer>
+      <p>Stillwater — building Fish Hawk in public, one system at a time.</p>
+    </footer>
+    <script type="module" src="/src/wetlens.ts"></script>
+  </body>
+</html>

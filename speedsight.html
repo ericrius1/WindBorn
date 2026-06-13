@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Speed of Sight — Stillwater</title>
+    <meta
+      name="description"
+      content="Motion blur from a velocity buffer, radial streaks derived from optical flow, depth of field from the circle of confusion, and an FOV that widens with airspeed — the camera effects that make a dive feel like falling."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-speedsight"></div>
+      <div class="hero-title">
+        <h1>The Speed of Sight</h1>
+        <p class="subtitle">
+          An osprey hits thirty meters per second in a dive, and a fixed,
+          perfectly sharp camera makes it look like ten. This post teaches the
+          frame what a real camera knows about speed: blur it, streak it,
+          narrow its focus, and widen its eye — all read live from the flight
+          telemetry.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        The dive is Fish Hawk's centerpiece, and we spent a whole season making
+        it physically true — <a href="/envelope.html">the flight envelope</a>
+        gives the acceleration, <a href="/breach.html">the breach</a> gives the
+        splash. But truth isn't the same as sensation. When
+        <a href="/joy.html">the joy pass</a> tuned game feel, we discovered the
+        renderer's dirty secret: every frame is infinitely sharp and the lens
+        is infinitely fast, so speed only exists as parallax. A real camera —
+        and a real eye — degrades under speed, and that degradation IS the
+        sensation. <a href="/grade.html">Last post</a> built a chain that
+        recolors the frame. This one builds the stages that <em>move pixels</em>,
+        and wires every one of them to the <code>FlightState</code> telemetry
+        the flight model publishes each frame: airspeed in, sensation out.
+      </p>
+
+      <h2><span class="kicker">Step 1 · Motion blur</span>Integrating over the shutter</h2>
+      <p>
+        A film camera's shutter stays open for a slice of each frame — at 24
+        fps, classically half the frame, the "180° shutter". Anything that
+        moves while it's open paints a smear across the film. Mathematically
+        the photograph is the <em>integral of the image over the shutter
+        interval</em>, and our discrete version is an average: sample the frame
+        at several points along each pixel's motion and sum. The only hard part
+        is knowing the motion. So we ask the renderer: alongside color, each
+        object also writes its screen-space displacement since the previous
+        frame into a second render target — the <em>velocity buffer</em>. (The
+        vertex shader simply projects each vertex with both this frame's and
+        last frame's matrices and subtracts.) The blur node then walks
+        <code>±shutter/2</code> along that vector. Freeze the world and the
+        blur vanishes instantly — there is no motion between identical frames,
+        which tells you precisely where this effect's information comes from:
+      </p>
+
+      <div data-demo="velocity-blur"></div>
+
+      <h2><span class="kicker">Step 2 · Radial streaks</span>Optical flow of pure forward motion</h2>
+      <p>
+        Velocity blur is honest but it has a blind spot: when the
+        <em>camera</em> flies forward, most per-pixel motion is small near the
+        center of the frame and large at the edges. Look at where things flow
+        when you move straight ahead — every point streams radially outward
+        from the point you're aiming at. (Geometry: a point at angle
+        <code>θ</code> off the flight axis slides across your visual field at a
+        rate proportional to <code>sin θ</code>; at the aim point, θ = 0,
+        nothing moves.) So the dive look is a <em>radial</em> blur we can
+        compute without any velocity buffer at all: for each pixel, pull
+        samples along the ray from the screen center through the pixel, with a
+        pull strength that grows from zero at the center. The fovea stays
+        sharp, the periphery tears — which happens to be exactly how your own
+        vision degrades when you sprint. A pinch of chromatic fringe (red taps
+        pulled slightly farther than blue) sells the cheap-lens panic of it:
+      </p>
+
+      <div data-demo="radial-streaks"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · Two blurs, one budget</span>
+        <p>
+          Why keep both? Velocity blur is per-object — the bird's wings smear
+          while the mountains hold still — and it costs an extra render
+          target. Radial streaks are camera-global and nearly free, but they
+          know nothing about individual objects. In the game the streaks carry
+          the dive (camera motion dominates) and the velocity buffer is a
+          quality toggle for the wingbeats. Each stage hands the next its
+          color as the center tap, so stacking them stays seamless.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 3 · Depth of field</span>The circle of confusion</h2>
+      <p>
+        A pinhole camera renders everything sharp; every real lens focuses
+        exactly <em>one</em> distance. Light from a point at any other distance
+        converges in front of or behind the sensor, so it lands as a disc — the
+        <em>circle of confusion</em> (CoC). Thin-lens optics says the disc's
+        diameter grows with how far the point sits from the focal plane, scaled
+        by aperture. We keep the model and shed the constants:
+      </p>
+      <pre><code>coc(z) = maxCoC · clamp(|z − focus| / range, 0, 1)</code></pre>
+      <p>
+        Implementing it is where renderers usually cheat backwards. The honest
+        simulation <em>scatters</em>: each source pixel splats a disc of its
+        own CoC size onto the image. GPUs hate scatter, so we <em>gather</em>:
+        each destination pixel samples a disc of neighbors (sixteen taps on a
+        golden-angle spiral, radius √i for even coverage) scaled by its own
+        CoC. Done naively that's wrong in one telling way — a sharp,
+        in-focus bird would "gather" smeared color from the blurry background
+        behind it. The fix is the scatter-as-gather weight: a neighbor only
+        contributes if <em>its own</em> CoC is large enough to reach us. Each
+        tap is weighted by <code>tapCoC / gatherRadius</code>, and the bleed
+        disappears. The reeds and the bird below sit at 2.5 to 30 meters; rack
+        the focus through them:
+      </p>
+
+      <div data-demo="dive-dof"></div>
+
+      <h2><span class="kicker">Step 4 · The bridge</span>Telemetry in, sensation out</h2>
+      <p>
+        Now the wiring, which is where this post earns its place in the game.
+        The flight model publishes a <code>FlightState</code> every frame —
+        airspeed, vertical speed, tuck, altitude — and a small bridge object
+        reads it and settles the uniforms. Airspeed maps through a smoothstep
+        window (nothing below 13 m/s, saturating by 28) to the streak amount,
+        so cruising stays clean and the dive tears. The dive signal —
+        <code>tuck × falling</code> — drives the DOF: focal range collapses
+        from sixty meters to seven, focus pinned to the water you're aimed at,
+        because a predator in a stoop sees its fish and nothing else. And the
+        FOV law from <a href="/joy.html">the joy pass</a> lives here too: 0.9°
+        of extra width per m/s above cruise, eased, so the world physically
+        widens as it rushes in. Every input is smoothed with the same
+        exponential lag (about a sixth of a second) — effects that snap on
+        feel like a bug; effects that bloom in feel like adrenaline. Toggle the
+        three channels and watch one dive three ways:
+      </p>
+
+      <div data-demo="flight-bridge"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · The osprey's actual eyes</span>
+        <p>
+          The real bird does the opposite of our camera. An osprey's eyes have
+          two foveae per eye and roughly twice the human density of
+          photoreceptors; in the dive it tracks the fish through head
+          stabilization so precise the image barely moves on its retina. The
+          blur is for <em>us</em> — a translation of what 30 m/s feels like
+          into a language human players already speak from car windows and
+          bicycle descents. Honest physics, cinematic delivery.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Onward</span>What this unlocks</h2>
+      <p>
+        The chain now has two stages of pixel motion and a focus model, all
+        keyed to flight. The hero up top runs the full circuit — cruise, tuck,
+        strike, climb — through grade, bloom, streaks, DOF, and the FOV kick at
+        once; the readout shows the telemetry driving it. But the dive doesn't
+        end in the air. The most violent thing that happens to this camera is
+        the moment it goes <em>through the lake</em> — and back in
+        <a href="/lens.html">Crossing the Lens</a> we faked that with quads
+        glued in front of the camera. Now that the frame is a texture we can do
+        what water on glass really does: refract it. Next post, the wet lens.
+      </p>
+    </main>
+    <footer>
+      <p>Stillwater — building Fish Hawk in public, one system at a time.</p>
+    </footer>
+    <script type="module" src="/src/speedsight.ts"></script>
+  </body>
+</html>
