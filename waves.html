@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>Waves as Arithmetic — Stillwater</title>
+    <meta
+      name="description"
+      content="The wave equation discretized onto a GPU grid: a height field, a velocity field, ping-pong storage buffers, the CFL stability limit, and boundaries that reflect or absorb."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-waves"></div>
+      <div class="hero-title">
+        <h1>Waves as Arithmetic</h1>
+        <p class="subtitle">
+          Every ripple in this pond is computed, not scripted: two numbers per
+          cell, one rule, sixty times a second. This is the start of the
+          machine the dive will land in.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Fish Hawk's whole pitch lives in about two seconds of gameplay: the osprey folds,
+        falls, and hits the lake talons-first. If that splash is a canned animation, the
+        game has no centerpiece. So this series builds a real fluid simulation — water
+        that rings, reflects, piles up, and pushes back. Our lake already <em>looks</em>
+        right: <a href="/ripples.html">wind-driven waves</a>, <a href="/mirrorworld.html">real reflections</a>,
+        <a href="/depths.html">depth-tinted shallows</a>. And when something touches it,
+        the <a href="/stillwater.html">finale scene</a> spawns an expanding analytic ring
+        from the disturbance bus. That ring is a good fake — but it's deaf. It doesn't
+        bounce off a shoreline, two rings pass through each other without a thought, and
+        nothing can surf it. Today we replace scripted motion with computed motion: the
+        wave equation, on a GPU grid, derived from almost nothing.
+      </p>
+
+      <h2><span class="kicker">Step 1 · The state</span>Two numbers per cell</h2>
+      <p>
+        Chop a square of water into a grid, 256 cells on a side. Each cell stores the
+        surface height <code>h</code> (meters above calm) and the vertical velocity
+        <code>w = ∂h/∂t</code> (how fast that height is changing). That pair is the
+        entire state — about half a megabyte for sixty-five thousand cells. The physics
+        is one question asked everywhere at once: <em>what accelerates the surface?</em>
+      </p>
+      <p>
+        Picture one cell sitting higher than its four neighbors. Water under pressure
+        flows away from the pile, so the pile falls; a cell in a dip gets filled. The
+        restoring acceleration is proportional to how far the cell sits from the
+        <em>average of its neighbors</em> — not from zero. A perfectly flat-but-tilted
+        region feels no force at all, which is exactly right: a slope by itself isn't a
+        wave. Written out for cell <code>(i, j)</code> with spacing <code>dx</code>:
+      </p>
+      <pre><code>lap = (h[i−1,j] + h[i+1,j] + h[i,j−1] + h[i,j+1] − 4·h[i,j]) / dx²
+∂w/∂t = c² · lap</code></pre>
+      <p>
+        That neighbor sum is the <strong>five-point stencil</strong>, the discrete
+        Laplacian <code>∇²h</code> — the curvature of the surface. The continuous
+        statement, <code>∂²h/∂t² = c²∇²h</code>, is the classical wave equation, and
+        <code>c</code> is the speed its disturbances travel at. For today <code>c</code>
+        is a dial we turn by hand; <a href="/shallows.html">part two</a> derives what
+        actually sets it (the answer is the depth of the lakebed, which is a much better
+        story). Scroll through what the stencil does to a pile of water:
+      </p>
+
+      <div data-scrolly="stencil"></div>
+
+      <p>
+        Notice what the scrolly shows at the end: we never programmed "waves." We
+        programmed <em>curvature pulls the surface toward its neighbors</em>, and
+        traveling waves fell out. The demo below is the same thing in 2-D, on a matte
+        clay surface so shape is all you see — click to drop pebbles, and watch rings
+        emerge from arithmetic:
+      </p>
+
+      <div data-demo="pebble-pond"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · Why height fields at all</span>
+        <p>
+          Real splash hydrodynamics is 3-D: pressure fields, vortices, entrained air. A
+          height field collapses all of that to "the surface is a function
+          <code>h(x, z)</code>" — it cannot overturn, so a true plunging breaker is out of
+          reach. For a mountain lake that trade is nearly free: everything an osprey
+          makes — rings, wakes, crowns — reads as surface motion, and the budget is two
+          floats per cell instead of a volumetric grid. The one thing we'll genuinely
+          miss (the underwater cavity a dive punches) gets faked honestly in
+          <a href="/crown.html">part five</a> with particles.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · The march</span>Ping-pong, or how a GPU takes a step</h2>
+      <p>
+        Integrating is two lines per cell. Kick the velocity with the acceleration, then
+        drift the height with the <em>new</em> velocity — the "kick-then-drift" order
+        (symplectic Euler) conserves the wave's energy far better than updating both
+        from old values:
+      </p>
+      <pre><code>w ← (w + c²·lap·dt) · damp
+h ←  h + w·dt</code></pre>
+      <p>
+        On a CPU you'd loop over cells. On the GPU all sixty-five thousand cells update
+        <em>simultaneously</em> — and that concurrency springs a trap. My update reads my
+        four neighbors' heights; my neighbors are updating at the same instant. Do I read
+        their old height or their new one? Whichever thread happens to run first wins,
+        and the answer changes every frame: a race condition baked into the physics.
+        The fix is never to write where you read. Keep <strong>two</strong> copies of the
+        state: every substep reads buffer A in its entirety and writes buffer B in its
+        entirety, then the buffers swap roles. A is always "the past," B is always "the
+        future," and no thread can see a half-written present. That swap dance is
+        <strong>ping-pong</strong>, and it's the structural heart of every grid sim in
+        this series. Step through it one substep at a time:
+      </p>
+
+      <div data-demo="ping-pong"></div>
+
+      <h2><span class="kicker">Step 3 · The speed limit</span>The CFL condition</h2>
+      <p>
+        There's a number hiding in that update that decides whether the simulation is
+        physics or an explosion. In one substep <code>dt</code>, a real wave moves
+        <code>c·dt</code> meters. But information on the grid moves at most one cell —
+        <code>dx</code> — per substep, because the stencil only reaches one neighbor out.
+        If <code>c·dt &gt; dx</code>, the true wave outruns the grid's ability to pass
+        the message along; the discrete system can't represent what should have
+        happened, the error compounds every step, and the surface tears itself apart
+        within a second. The dimensionless ratio
+      </p>
+      <pre><code>CFL = c · dt · √2 / dx     (the √2 is the diagonal of a 2-D grid)</code></pre>
+      <p>
+        must stay below 1 — the Courant–Friedrichs–Lewy condition, and it is not
+        advisory. Our stepper measures the frame time, computes the largest stable
+        substep, and runs as many substeps as needed (a fast pond at 60 fps usually
+        needs one or two). The demo below removes that guard rail on purpose. Slide
+        past 1.0 and watch a healthy pond go to grid-frequency noise to NaN soup; the
+        reset button is right there:
+      </p>
+
+      <div data-demo="cfl-cliff"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · Damping is honesty, not defeat</span>
+        <p>
+          The <code>damp</code> factor multiplies the velocity by
+          <code>e^(−k·dt)</code> each substep. Real ponds lose wave energy to viscosity
+          and to air; an undamped grid rings forever, and worse, the shortest
+          representable waves (two cells per crest) accumulate numerical junk. A small
+          <code>k</code> — we use 0.1 to 0.2 per second — fades a splash over tens of
+          seconds, which is what a real lake does. The hero's damping slider makes the
+          difference obvious: zero feels like a gong, too much feels like syrup.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 4 · The walls</span>Reflect or absorb</h2>
+      <p>
+        One decision is still implicit: what happens at the edge of the grid, where a
+        cell is missing a neighbor? Our stencil <em>clamps</em> — an edge cell reads
+        itself in place of the missing neighbor. That makes the height gradient zero
+        across the wall, which physically is a perfect mirror: waves bounce straight
+        back with no loss, like a bathtub. Sometimes that's exactly right (it will be
+        the shoreline's job in <a href="/shallows.html">part two</a>). But our final
+        simulation is a small window onto a huge lake — a wave that leaves the window
+        should be <em>gone</em>, not reflected back as a ghost. For that we add a
+        <strong>sponge</strong>: in a rim a few cells wide, both <code>h</code> and
+        <code>w</code> get an extra damping that ramps up quadratically toward the
+        edge. Outgoing waves wade into ever-thicker mud and die before they can turn
+        around. Toggle between the two and watch the same drip live two different
+        lives:
+      </p>
+
+      <div data-demo="boundaries"></div>
+
+      <h2><span class="kicker">Onward</span>What this unlocks</h2>
+      <p>
+        We now own a pond that computes itself: state, stencil, ping-pong, a speed
+        limit we respect, and walls we choose. But it has one big lie in it — that
+        constant <code>c</code>. Real water's wave speed isn't a dial; it's set by the
+        depth underneath, which is why swell slows down, bunches up, and steepens as it
+        feels a beach. We already built that beach: <a href="/lakebed.html">The
+        Lakebed</a> gave the whole valley a depth function. Next post we derive the
+        shallow-water equations from scratch, feed them the real bathymetry, and watch
+        waves read the bottom of our lake — the last physics upgrade before the
+        <a href="/simbubble.html">sim bubble</a> starts following the bird.
+      </p>
+    </main>
+    <footer>
+      <p>Stillwater — building Fish Hawk in public, one system at a time.</p>
+    </footer>
+    <script type="module" src="/src/waves.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>Shallow Water — Stillwater</title>
+    <meta
+      name="description"
+      content="Deriving the shallow-water equations from column bookkeeping, then feeding them the lake's real bathymetry: waves that slow down, bunch up, and steepen as they feel the beach."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-shallows"></div>
+      <div class="hero-title">
+        <h1>Shallow Water</h1>
+        <p class="subtitle">
+          Swell rolling onto a real shoreline of our valley — slowing, bunching,
+          steepening — because the simulation now reads the lakebed under every
+          cell. The wave speed dial from part one becomes physics.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        <a href="/waves.html">Part one</a> ended with a confession: our pond's wave
+        speed <code>c</code> was a slider. Real water doesn't have a speed dial — it has
+        a <em>bottom</em>. The wave speed at every point is set by how deep the water is
+        right there, which is why ocean swell, invisible in deep water, rears up and
+        breaks on a beach. Fish Hawk needs this for real reasons: the osprey hunts the
+        shallows where fish flash near the surface, the game's shorelines are where
+        splash meets land, and <a href="/lakebed.html">The Basin series already built
+        the bathymetry</a> — a depth function <code>terrainHeightAt(x, z)</code> the
+        whole site shares. Today we derive the shallow-water equations from scratch and
+        wire that function straight into the integrator. The payoff: drop a stone
+        anywhere in the valley's lake and the rings respond to a lakebed we sculpted
+        three posts ago.
+      </p>
+
+      <h2><span class="kicker">Step 1 · The bookkeeping</span>Columns, flux, and two laws</h2>
+      <p>
+        Forget the membrane picture from part one; this time we do honest fluid
+        accounting. Stand a column of water on each grid cell: still depth
+        <code>d(x, z)</code> from the lakebed up to the calm line, plus the live surface
+        offset <code>η</code> on top (our old <code>h</code>, renamed because it now
+        rides on a variable bottom). Give each column a horizontal velocity
+        <code>v = (vx, vz)</code> — in shallow water the whole column moves together,
+        which is the approximation the name announces: it holds when wavelengths are
+        long compared to the depth.
+      </p>
+      <p>
+        Two conservation laws close the system. <strong>Mass:</strong> the water sliding
+        between columns is the flux <code>q = d·v</code> (a deep column carries more
+        than a shallow one at the same speed). Wherever more arrives than leaves, the
+        surface must rise: <code>∂η/∂t = −∇·(d·v)</code>. <strong>Momentum:</strong> a
+        tilted surface means more water — more pressure — under the high side, and the
+        imbalance accelerates the column downhill: <code>∂v/∂t = −g·∇η</code>. Scroll
+        through the whole argument:
+      </p>
+
+      <div data-scrolly="column-flux"></div>
+
+      <p>
+        Substitute one law into the other (take <code>∂/∂t</code> of the mass equation,
+        insert the momentum equation) and for constant depth you get
+        <code>∂²η/∂t² = g·d·∇²η</code> — exactly part one's wave equation, with the
+        mystery dial exposed:
+      </p>
+      <pre><code>c = √(g·d)</code></pre>
+      <p>
+        Gravity times depth, square root. Two meters of water carries waves at 4.4 m/s;
+        twenty centimeters, at 1.4 m/s. The discrete update is the same ping-pong
+        machinery as before — read buffer A, write buffer B — just with three state
+        numbers per cell instead of two, central differences for the divergence and the
+        gradient, and the depth buffer consulted at every neighbor. Check the formula
+        against your own eyes:
+      </p>
+
+      <div data-demo="speed-of-depth"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · One declared cheat</span>
+        <p>
+          Shallow-water theory treats <em>every</em> wave as a long wave. Over the deep
+          basin (20 m and more) that gives centimeter splash ripples a speed of 14 m/s —
+          they'd flee the window before you saw them. Real physics fixes this with
+          dispersion (short waves travel at <code>√(gλ/2π)</code> instead, the formula
+          from <a href="/ripples.html">Wind over Water</a>), but dispersion doesn't fit
+          a local stencil. So the sim caps the <em>effective</em> depth at about 1.5 m:
+          wherever the lake is deeper, waves run as if it were 1.5 m deep. Near shore —
+          everywhere shallower than the cap — the true depth takes over and shoaling is
+          honest. It's the same kind of declared look-cheat as the wave table's slowed
+          swell, written down in the source where future-me will find it.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · Shoaling</span>Why waves stand up on a beach</h2>
+      <p>
+        Now make the depth a ramp and the equations start telling stories. A swell
+        train marches toward a linear beach: as <code>d</code> shrinks, <code>c =
+        √(g·d)</code> shrinks with it, so the front of each crest is always slower than
+        the back. Three things follow, all visible below. The crests <strong>bunch
+        up</strong> — wavelength shortens in proportion to speed because the period
+        can't change. The wave <strong>steepens</strong> — the energy flux
+        <code>E·c</code> must stay roughly constant, so as <code>c</code> drops the
+        amplitude grows (Green's law, <code>amplitude ∝ d^(−1/4)</code>). And the crest
+        line <strong>bends parallel to the shore</strong> — the end of a crest in
+        shallower water lags the end in deeper water, refracting the whole front. None
+        of that is coded anywhere. It's all consequences of <code>−∇·(d·v)</code>:
+      </p>
+
+      <div data-demo="shoaling-ramp"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · Where this model stops</span>
+        <p>
+          Follow a crest far enough up the ramp and real water <em>breaks</em>: the
+          crest outruns its own base and overturns. A height field cannot overturn —
+          <code>η</code> is one value per location — so our waves steepen, then the
+          damping and the wet/dry boundary quietly absorb what a real beach would
+          spend on whitewater. The foam channel in <a href="/wake.html">part six</a>
+          paints the visual consequence without simulating the violence. Honest
+          budget: breaking is the one shoreline phenomenon we fake.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 3 · The real lakebed</span>Reading the Basin</h2>
+      <p>
+        The ramp was a rehearsal; the lake has the real thing. <a href="/lakebed.html">The
+        Lakebed</a> established the contract: <code>terrainHeightAt(x, z)</code> is
+        negative underwater, positive on land, zero exactly at the shoreline — and it
+        ships with a GPU twin, <code>terrainHeightNode</code>, that evaluates the same
+        composition in a shader. So filling the sim's depth buffer is one compute pass:
+        <code>d = max(0, −terrainHeight)</code> at each cell's world position. Cells
+        with <code>d = 0</code> are land. They carry zero flux — and a zero-flux wall
+        is precisely the reflecting boundary from <a href="/waves.html">part one</a>,
+        so waves bounce off the shoreline without a single line of shoreline code. The
+        sponge rim from part one still guards the window's outer edge, where the lake
+        continues but our grid doesn't.
+      </p>
+      <p>
+        This demo parks the window on a real stretch of our shore — the same terrain
+        mesh you walked in <a href="/cirque.html">Carving the Cirque</a> rises out of
+        the water. Click anywhere: rings race over the deep side, crawl and squeeze
+        together in the shallows, and rebound off the beach:
+      </p>
+
+      <div data-demo="lakebed-window"></div>
+
+      <h2><span class="kicker">Onward</span>What this unlocks</h2>
+      <p>
+        The simulation is now made of the same world as everything else: one depth
+        function shared with the terrain renderer, the fish (soon), and the wind's
+        ridge lift. But it still lives on a parked grid a few dozen meters wide, and
+        Fish Hawk's bird goes wherever it pleases over a square kilometer of lake. We
+        can't afford that lake at splash resolution — and we don't have to. Next post
+        builds the series' namesake trick: a fixed-budget window that follows the
+        action, hands off seamlessly to the ambient analytic water at its rim, and
+        swaps itself in as the site-wide water provider. The lake will be simulated
+        only where it matters, and nobody watching will be able to tell where the
+        seam is.
+      </p>
+    </main>
+    <footer>
+      <p>Stillwater — building Fish Hawk in public, one system at a time.</p>
+    </footer>
+    <script type="module" src="/src/shallows.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Dusk Event — Stillwater</title>
+    <meta
+      name="description"
+      content="The series finale: hatch, rises, swallows, geese, eagle, and golden light assembled into one scene, conducted by a single number — the hour — with the whole food chain coupled and on budget."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-dusk"></div>
+      <div class="hero-title">
+        <h1>The Dusk Event</h1>
+        <p class="subtitle">
+          One evening, on a loop: the light goes gold, the mayflies lift off,
+          the fish come up to meet them, the swallows come down, and the
+          eagle keeps climbing. Nobody is in charge. Everybody is on time.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Every series on this site ends by assembling its parts, but this one
+        assembles into something the game has been quietly promising since
+        the first post: the <strong>dusk event</strong>, the scheduled hour
+        when the whole valley becomes the HUD. In Fish Hawk this is prime
+        hunting time — the rings are everywhere, the light is forgiving, and
+        a day spent learning the lake pays out in twenty minutes of easy
+        reads. Mechanically, it's the four previous posts running
+        simultaneously: <a href="/fish.html">the school</a>,
+        <a href="/hatch.html">the hatch</a>,
+        <a href="/flocks.html">the other wings</a>, and
+        <a href="/shore.html">the swaying margin</a>, under a golden-hour
+        sky. The work of this post is the assembly itself: one conductor,
+        real coupling between the layers, and a frame budget that survives
+        all of it at sixty.
+      </p>
+
+      <h2><span class="kicker">Step 1 · The conductor</span>One number runs the evening</h2>
+      <p>
+        There is no "dusk event manager" in the codebase, and that's the
+        point. The only conductor is <code>clock.hour</code> — the same
+        world clock the spine has carried since the scaffold — and a handful
+        of pure functions of it. The hatch spawner reads
+        <code>hatchIntensity(hour)</code>. The fish's hunger <em>is</em>
+        <code>hatchIntensity(hour)</code> — appetite tracks opportunity.
+        Swallow activity is a rescale of the same curve, because the
+        swallows are eating the same hatch. The light rig keys its whole
+        palette — sun elevation and color, horizon glow, hemisphere fill,
+        fog — off the hour, peaking gold in the last hour before sunset.
+        Four systems, zero messages between them; they synchronize the way
+        an orchestra without a conductor does, by all reading the same
+        clock. The figure below plots the four response curves with one
+        cursor through them: the entire evening's choreography, as
+        arithmetic.
+      </p>
+      <p>
+        This design has a consequence worth naming: <em>dusk is not an
+        event</em>. Nothing fires at 19:00; there's no trigger to miss, no
+        state to desync, no save-file flag. Scrub time backward and the
+        evening politely runs in reverse. When the weather season later
+        wants a storm to suppress the hatch, it will multiply one function
+        by another — clouds darken the sky, intensity reads lower, fish
+        stay down — and every dependent behavior will follow without a
+        single new connection.
+      </p>
+      <div data-demo="conductor"></div>
+
+      <h2><span class="kicker">Step 2 · The chain</span>Coupling, not coincidence</h2>
+      <p>
+        Running four systems on one clock makes them simultaneous. Making
+        them <em>matter</em> to each other is the difference between an
+        ecosystem and a screensaver, and the currency is the mayfly. Duns
+        and spent spinners float on the film; the hatch hands that list to
+        the school every frame, and each fish rise removes a real particle —
+        eaten means gone. Swallows hawk the airborne stage: any bird passing
+        within a wing's reach of a flier takes it. So the swarm you see is a
+        <em>standing crop</em> — spawn rate in, predation out — and it
+        responds the way populations respond. Toggle the fish off below and
+        the surface stages pile up; toggle the swallows off and the dance
+        column thickens within seconds. Turn both back on and watch the
+        equilibrium find itself again. Nothing tells the swarm to shrink:
+        it's just losing members to two predators that are each following
+        their own rules.
+      </p>
+      <p>
+        The player's information channel falls straight out of this. Rises
+        cluster where floating duns cluster; duns drift from where nymphs
+        emerged; nymph habitat is the 0.5–6 m silt belt along
+        <a href="/lakebed.html">the bathymetry</a>. So when you read a patch
+        of rings at dusk, you are reading the lakebed through four layers of
+        biology — which means learning the lake's geography is learning
+        where dinner is. That's the hunt working as designed, before the
+        hunt mechanics even exist.
+      </p>
+      <div data-demo="chain"></div>
+      <aside class="note">
+        <span class="note-label">Aside · Why everything eats mayflies</span>
+        <p>
+          A real hatch is one of the great energy transfers in freshwater:
+          biomass that spent a year accumulating on the lake bottom converts
+          itself into surface protein in an hour, with no defenses — adult
+          mayflies can't even eat, let alone flee. Trout abandon caution for
+          it, swallows time their evening foraging around it, and on the
+          big mayfly lakes the emergence is dense enough to show up on
+          weather radar. An efficiency our budget appreciates: one prey
+          species feeds the entire cast.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 3 · Holding sixty</span>The budget of a living lake</h2>
+      <p>
+        The dusk scene is the most populated frame the site has rendered:
+        two hundred fish, a couple thousand mayflies, two dozen birds, tens
+        of thousands of plants, the lake surface, and the terrain. The reason
+        it holds 60 fps is that population size and draw-call count were
+        decoupled in every post: one geometry per species, one instanced
+        draw per population, behavior on the CPU writing nothing but
+        instance matrices, deformation — tail wiggle, wingbeat, grass bend —
+        in the vertex stage where it costs per-vertex, not per-creature.
+        The CPU side stays honest too: the boids pair test is the only
+        super-linear cost in the scene, and at two hundred fish it's under
+        half a millisecond; everything else — hatch stages, skim runs,
+        slot-chasing geese — is a few arithmetic lines per agent per frame.
+      </p>
+      <p>
+        The demo below is the assembled scene with a kill switch per system.
+        Watch the fps readout as you toggle: plants are tens of thousands of
+        instances but nearly free (static matrices, vertex-stage sway);
+        the hatch is thousands of <em>moving</em> instances and costs its
+        matrix uploads; the fish cost their pair test. That's the profile
+        the final game inherits, and the knobs — fish count, hatch capacity,
+        glint pool — are exactly where the
+        future performance post will reach for them.
+      </p>
+      <div data-demo="budget"></div>
+
+      <p>
+        Step back and look at what the season built. A lake that keeps an
+        appointment: every evening, on a clock the whole world shares, the
+        light turns gold and the food chain surfaces — insects rising,
+        rings spreading, swallows stitching dotted lines between them, the
+        eagle circling its tower of warm air above it all. No scripts, no
+        triggers; five populations reading three spine contracts
+        (<code>clock</code>, <code>wind</code>, <code>disturb</code>) and
+        one terrain function. For the game, this is the table set: the
+        <em>spot</em> verb now has real signal to read, the hunt has prey
+        with honest positions, and the thief has a perch. What the valley
+        needs next is a voice — wind that roars past your ears in a dive,
+        water that answers every ring on the bus with a sound. That's the
+        next series, <a href="/rush.html">The Ear</a>.
+      </p>
+    </main>
+    <footer>
+      <p><a href="https://github.com/ericrius1/stillwater">Source on GitHub</a></p>
+    </footer>
+    <script type="module" src="/src/dusk.ts"></script>
+  </body>
+</html>

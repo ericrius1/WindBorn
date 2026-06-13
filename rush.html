@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Sound of Speed — Stillwater</title>
+    <meta
+      name="description"
+      content="Wind synthesized from live airspeed: filtered noise banks whose cutoffs and gains track the flight model, from glide hiss to dive scream to the whump of every downstroke."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-rush"></div>
+      <div class="hero-title">
+        <h1>The Sound of Speed</h1>
+        <p class="subtitle">
+          There is no wind sound file in Fish Hawk. There is a flight model, and
+          there is a synthesizer listening to it. Click the hero, fly a dive, and
+          what you hear is your airspeed — nothing else.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Three seasons in, this project can show you speed: the
+        <a href="/joy.html">FOV kick</a>, the streaking water, the trembling
+        airframe at the <a href="/envelope.html">edge of the envelope</a>. But play
+        any flying game with the sound off and you'll notice what's missing —
+        speed you can't hear doesn't <em>feel</em> fast. The dive is Fish Hawk's
+        centerpiece, and a dive is mostly an audio event: hiss building to a howl,
+        a held breath, then water. So this season builds the game's ears, and it
+        starts with the sound the bird can never escape: the wind of its own
+        motion.
+      </p>
+      <p>
+        Here's the thing that makes this post fun: that sound doesn't exist in
+        the world. When you stand in a gale, the roar you hear isn't sound that
+        traveled to you from somewhere — it's turbulence boiling around your own
+        head, pressure chaos created at the ear itself. Microphone people call it
+        pseudo-sound. For us it's a gift, because it means wind audio isn't an
+        ambience to play back. It's a <em>signal to synthesize from state</em> —
+        and we already publish that state. <a href="/joy.html">The Joy Pass</a>
+        ended by exporting <code>flightState</code> precisely so a system like
+        this one could read <code>airspeed</code> sixty times a second and turn it
+        into pressure at your eardrums.
+      </p>
+
+      <h2><span class="kicker">Step 1 · The atom</span>One noise source, one filter</h2>
+      <p>
+        Turbulent pressure fluctuation is the textbook example of a broadband
+        random signal, so the raw material is white noise — equal energy at every
+        frequency, the sound of pure chance. White noise alone sounds like a
+        detuned radio. Every wind sound in this series is that same noise pushed
+        through filters: a <em>bandpass</em> keeps energy near a center frequency
+        and discards the rest, and its resonance <code>Q</code> sets how narrow
+        the kept band is. Low center and low Q reads as distant rumble; a high
+        center with high Q rings at its center like a whistle being approached.
+      </p>
+      <p>
+        That's the entire vocabulary. Before any mapping, get an ear for the atom
+        itself — the demo below is one noise source and one bandpass, with the
+        filter's ideal response drawn over the live spectrum. Find 300&nbsp;Hz at
+        low Q (a sheltering eave), then sweep up past 2&nbsp;kHz and raise Q until
+        it whistles.
+      </p>
+      <div data-demo="bands"></div>
+      <aside class="note">
+        <span class="note-label">Aside · Pseudo-sound</span>
+        <p>
+          Real sound is a pressure wave that propagates; pseudo-sound is local
+          pressure turbulence that never leaves the spot where it's made. It's why
+          wind "noise" ruins outdoor recordings — the microphone isn't hearing the
+          wind, it's <em>being</em> the wind — and why fur windscreens work: they
+          move the turbulence away from the capsule. An osprey's head is a small,
+          smooth capsule with feathers for a windscreen. What it hears in a dive
+          is exactly what we're synthesizing: its own private storm.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · The mapping</span>Airspeed in, spectrum out</h2>
+      <p>
+        Now wire the atom to the flight model. The patch is three bands fed by one
+        noise source, and every parameter is a function of airspeed
+        <code>V</code>:
+      </p>
+      <pre><code>body    lowpass    fc = 100 + 14·V        the whoosh itself
+hiss    bandpass   fc = 280 + 36·V        air tearing past edges
+scream  bandpass×2 fc ≈ 550 + 75·V, Q≈14  only opens above ~16 m/s</code></pre>
+      <p>
+        The cutoffs slide up with speed because faster flow shifts turbulent
+        energy toward smaller, faster eddies — the spectrum genuinely brightens.
+        Loudness rides dynamic pressure, the same <code>q&nbsp;=&nbsp;½ρV²</code>
+        that <a href="/forces.html">lift and drag</a> are built on; in amplitude
+        terms we use <code>(V/32)<sup>1.6</sup></code>, normalized so a committed
+        dive at 32&nbsp;m/s hits full voice while a 10&nbsp;m/s cruise stays
+        conversational. The scream is the special case: two high-Q resonators a
+        minor sixth apart whose gain is gated by a smoothstep that doesn't open
+        until 16&nbsp;m/s. Below that threshold a glide is all body and hiss;
+        past it, the resonators rise together and the patch stops whispering and
+        starts howling. One slider drives all of it below — or press the sweep
+        button and listen to a glide become a stoop, hands-free.
+      </p>
+      <div data-demo="speedmap"></div>
+      <p>
+        Gusts ride on top for free. The synth samples the same
+        <a href="/updrafts.html">wind field</a> the bird flies through, compares
+        the local wind magnitude to the mean, and lets that ratio breathe both
+        the gain and the cutoffs a few percent. When a gust shoves the bird in
+        the physics, the ear hears the shove too — one wind field, one weather,
+        now audible.
+      </p>
+
+      <h2><span class="kicker">Step 3 · The wingbeat</span>Whump and buffet</h2>
+      <p>
+        Steady-state wind isn't the whole voice. Two event layers key off the
+        flight model's telemetry. The first is the <em>flap whump</em>: each
+        downstroke shoves a wing-sized parcel of air, and a shoved parcel of air
+        is a low thud. We watch <code>flapPhase</code> — the
+        <a href="/flap.html">wingbeat clock</a> — and every time it passes
+        mid-downstroke we fire a 150&nbsp;ms burst of lowpassed noise plus a sine
+        thump that falls from 95 to 45&nbsp;Hz. The trigger is the physics'
+        clock, not a timer, so when effort rises and the wingbeat quickens from
+        2.5 toward 4.5&nbsp;Hz, the whumps quicken with it, exactly in step with
+        the animation.
+      </p>
+      <p>
+        The second is <em>stall buffet</em>. <a href="/envelope.html">The
+        Envelope</a> computes a stall blend — how separated the flow over the
+        wing is — and separated flow is unsteady flow: it sheds vortices that
+        beat against the airframe at around ten hertz. So the synth runs a
+        ~10&nbsp;Hz tremolo on the whole wind bed whose <em>depth</em> is the
+        stall blend. At zero it's inaudible. As you haul the nose up and the wing
+        begins to mush, the wind starts to flutter before anything visual
+        happens — the same early warning the camera shake gives, now in your
+        ears, and from the same number.
+      </p>
+      <div data-demo="whump"></div>
+      <aside class="note">
+        <span class="note-label">Aside · One context, one limiter</span>
+        <p>
+          Every sound this season makes — wind, splashes, calls, music — flows
+          through a single shared <code>AudioContext</code> and one master
+          limiter: a compressor with a hard knee at −6&nbsp;dBFS and a 20:1
+          ratio. Browsers also refuse to start audio without a click, and our
+          demos build themselves while offscreen, so every demo starts silent
+          behind a gate that a click opens and a watchdog closes when the demo
+          scrolls away. Plumbing, not glamour — but it's why five noisy posts can
+          coexist on one site without clipping or autoplay sins.
+        </p>
+      </aside>
+
+      <p>
+        Listen to the hero again with all three layers in mind: body, hiss, and
+        scream sliding with <code>V</code>; whumps locked to the wingbeat;
+        buffet flickering when you pull too hard in the pullout. None of it is
+        recorded, none of it is scripted — it's the flight model, rendered as
+        pressure. That's the pattern for this whole season: find the state the
+        world already publishes, derive a small patch from first principles, and
+        let the simulation play it. Next we point the microphone down. The
+        <a href="/touchgo.html">disturbance bus</a> has been carrying splash
+        events since the bird first learned to land — it's time the water
+        answered out loud.
+      </p>
+    </main>
+    <footer>
+      <p><a href="https://github.com/ericrius1/stillwater">Source on GitHub</a></p>
+    </footer>
+    <script type="module" src="/src/rush.ts"></script>
+  </body>
+</html>

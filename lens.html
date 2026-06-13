@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>Crossing the Lens — Stillwater</title>
+    <meta
+      name="description"
+      content="The camera follows the osprey through the surface: an above/below state machine, a meniscus band where the waterline crosses the lens, droplet streaks on exit, and two color worlds."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-lens"></div>
+      <div class="hero-title">
+        <h1>Crossing the Lens</h1>
+        <p class="subtitle">
+          Most games cut away the instant a camera touches water. Fish Hawk's
+          camera goes through — and the half-second where the lens belongs to
+          both worlds at once is what this post builds.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Everything in Fish Hawk funnels toward one second of gameplay: the dive. The
+        osprey tucks, hits the lake talons-first, and for a breath it is a submarine —
+        then it breaches and climbs out with a fish. If the camera cuts to black at the
+        surface, that second is gone; the payoff moment of the whole game would happen
+        off-screen. So the camera has to follow the bird <em>through</em> the skin of
+        the lake. We already built that skin looking down at it — the
+        <a href="/skin.html">Fresnel mix</a>, the water you can
+        <a href="/depths.html">see into</a>, the <a href="/stillwater.html">assembled
+        dawn surface</a> — and we taught a bird to <a href="/touchgo.html">float on
+        it</a>. What we have never done is put the eye on the wrong side. Crossing
+        turns out to be three separate problems: knowing which world you're in,
+        drawing the instant where you're in both, and cleaning up afterwards.
+      </p>
+
+      <h2><span class="kicker">Step 1 · The state machine</span>Two worlds, one comparison</h2>
+      <p>
+        Which side of the surface is the camera on? The honest answer is one line:
+      </p>
+      <pre><code>submerged = camera.y &lt; waterHeightAt(camera.x, camera.z, t)</code></pre>
+      <p>
+        The function in that comparison matters more than the comparison. It's the
+        spine's water query — the exact CPU function the floating osprey reads in
+        <a href="/touchgo.html">Touch and Go</a>, and the exact wave table the GPU
+        displaces the rendered surface with. Because all three agree to the
+        millimeter, the state flips at the precise frame the lens visually meets a
+        wave crest — not at <code>y = 0</code> while a swell is passing 4&nbsp;cm above it.
+        One source of truth, zero seams.
+      </p>
+      <p>
+        The state drives two color worlds. Air is the scene as we've always rendered
+        it. Water is the same scene with three amendments, all of them physics we
+        already own. First, a <em>grade</em>: a full-screen quad parented to the
+        camera that multiplies the frame by the water's filter — the same
+        <a href="/depths.html">Beer–Lambert</a> per-channel exponentials, applied to
+        the camera instead of a view ray, deepening as the camera sinks (red goes
+        first, as always). Second, <em>fog</em>: every underwater material lerps
+        toward the medium's own glow color with distance, because water is a
+        participating medium and air, at lake scale, is not. Third, a different
+        <em>void</em>: above water the sky dome backs every pixel; below, a
+        camera-following dome takes over — bright toward the surface, blue-black
+        below, with a warm lobe toward the sun's azimuth. Slide the camera through
+        the surface and watch all three swap on the comparison:
+      </p>
+
+      <div data-demo="two-worlds"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · Why a multiply, not a repaint</span>
+        <p>
+          The underwater grade is multiplicative on purpose. Water doesn't add color
+          to a scene — it subtracts, channel by channel, which is exactly what a
+          multiply does. A bright sand patch stays brighter than a dark stone through
+          any amount of grading because the filter scales both; an additive tint
+          would crush that relationship and read instantly as "blue overlay" instead
+          of "underwater." Cheap rule, big believability dividend.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · The boundary</span>The meniscus band</h2>
+      <p>
+        A real camera isn't a point. The housing has height, and for a moment during
+        any crossing the waterline sits <em>on the glass</em>: water across the bottom
+        of the frame, air across the top, and between them a dark, wobbling stripe
+        where the water climbs the lens by surface tension. Photographers call shots
+        like this over-unders, and that stripe — the meniscus — is the thing that makes
+        them read as one continuous world instead of two stacked photos.
+      </p>
+      <p>
+        To draw it we need to know where the waterline crosses the frame. We project
+        one point per frame on the CPU: take a spot a meter and a half ahead of the
+        camera, snap its height to <code>waterHeightAt</code>, and run it through the
+        camera's projection. Near the crossing — the only time the band is visible —
+        that approximation lands within a couple of pixels of the truth, and it costs
+        one matrix multiply. The shader turns that screen height into a line, wobbles
+        it with two sine terms scaled by wind speed (waves slosh across the glass),
+        and draws a Gaussian band around it: a dark body where the climbing film
+        blocks light, a thin bright core where it lenses light instead. Below the
+        line, the underwater grade applies; above it, air — the split-frame moment,
+        per pixel:
+      </p>
+
+      <div data-demo="meniscus"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · The band has a gate</span>
+        <p>
+          The band's strength is gated by proximity: it fades in only when the lens
+          sits within half a meter of the surface. Without the gate, the projected
+          line would still exist when the camera is ten meters under — mathematically
+          fine, visually nonsense. Most of the polish in this post is gates like this
+          one: knowing when an effect must <em>not</em> appear is half of making it
+          believable when it does.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 3 · The exit</span>Droplets on the glass</h2>
+      <p>
+        Coming out is messier than going in. A wet lens keeps a film of water that
+        beads up and runs, and those streaks are the single strongest "we were just
+        underwater" cue available — so strong that we get it almost for free. The
+        droplets are fully procedural: when the state machine reports an exit, we
+        bump a counter and stamp the time. Each of a dozen streaks hashes its index
+        against that counter for a position, a delay, and a lifetime, then slides
+        down the frame on an accelerating curve (gravity feeding a streak through a
+        film) while it fades. No particles, no allocations, no cleanup — a fresh dunk
+        reseeds the hash and every streak finds a new home. Each streak is a tiny
+        capsule distance-field: a bright head bulb, a fading tail, the whole thing a
+        few instructions per pixel:
+      </p>
+
+      <div data-demo="droplets"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · The osprey's own wet lens</span>
+        <p>
+          The bird solved this problem millions of years before housings existed.
+          Ospreys carry a third eyelid — the nictitating membrane — a translucent
+          screen that sweeps across the eye the instant before impact, so the strike
+          is aimed with clear eyes and flown blind for the last meter. They also exit
+          with a signature move we'll steal for the breach post: a full-body mid-air
+          shake, like a dog, that sheds most of a soaked plumage's water in half a
+          second. Our droplet decay constant is tuned to that rhythm.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Onward</span>What this unlocks</h2>
+      <p>
+        The camera can now do the one thing the dive demands: stay with the bird.
+        State, grade, fog, void, band, droplets — the crossing machinery is built
+        once, in one place, and every later scene gets it by parenting two quads to
+        a camera. But the demos above quietly dodged a question. When the camera is
+        down there looking back up, what exactly should the underside of the surface
+        <em>show</em>? It is not a mirror, and it is not a window — it is both at
+        once, split by a single critical angle, with the entire sky folded into a
+        circle straight overhead. That circle has a name, an exact size, and a
+        one-line derivation, and it's where we go next.
+      </p>
+    </main>
+    <footer>
+      <p>Stillwater — building Fish Hawk in public, one system at a time.</p>
+    </footer>
+    <script type="module" src="/src/lens.ts"></script>
+  </body>
+</html>

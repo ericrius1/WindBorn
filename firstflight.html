@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>First Flight — Stillwater</title>
+    <meta
+      name="description"
+      content="Season 1's playable milestone: the glass-dawn lake, the real osprey, and the honest flight model integrated into one flyable scene — fly, land on the water, float, and take off again."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-firstflight"></div>
+      <div class="hero-title">
+        <h1>First Flight</h1>
+        <p class="subtitle">
+          Season one ends here: the lake from The Mirror, the bird from New
+          Feathers, and the flight model from Lift, together in one scene for
+          the first time. Click the water, take the stick, and fly. Land slow,
+          drift a while, and run back into the air.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Fifteen posts ago this site was an empty repository and a promise: a
+        lake, a bird, and eventually a game about being an osprey. Since then,
+        three series have each built their piece in deliberate isolation.
+        <a href="/stillwater.html">The Mirror</a> finished a glass-dawn lake —
+        Fresnel skin, wind-steered ripples, a planar mirror world, rings that
+        answer every touch. <a href="/osprey.html">New Feathers</a> built the
+        bird and taught her to <a href="/flap.html">flap</a>,
+        <a href="/poses.html">pose</a>, and
+        <a href="/touchgo.html">land on water</a> — on rails I scripted.
+        <a href="/forces.html">Lift</a> derived a flight model honest enough
+        to stall and <a href="/joy.html">tuned until it was joyful</a> — flown
+        as a stand-in dart glyph. Today the rails come off and the costume
+        goes on. The hero above is the milestone: the real bird, flown by the
+        real flight model, over the real lake. Keyboard or gamepad, exactly as
+        wired in <a href="/stick.html">The Stick</a>. Fly low until your own
+        ripples sharpen under you, bleed speed, settle onto the water, drift
+        with the wind — then hold the flap and she runs herself back into the
+        air. This post is the story of bolting three independently built
+        systems together: what snapped cleanly, where the seams were, and why
+        the whole thing needed less new code than any single essay before it.
+      </p>
+
+      <h2><span class="kicker">Step 1 · The contracts</span>Integration was decided before any series began</h2>
+      <p>
+        The classic way this goes wrong is famous enough to have a smell.
+        Three teams build three systems; each, needing weather or time or
+        water, invents a private one; integration day becomes rewrite day,
+        because the systems don't disagree about details — they disagree
+        about <em>reality</em>. Stillwater's defense was set up before the
+        first essay: four tiny shared modules called the spine, and a rule
+        that nobody invents privately what the spine already provides. One
+        wind field, <code>wind.sample(x, y, z, t)</code>. One clock,
+        <code>clock.hour</code>. One water query,
+        <code>waterHeightAt(x, z, t)</code>. One event channel,
+        <code>disturb(...)</code>.
+      </p>
+      <p>
+        Here is what that buys, concretely, in the scene above. The ripples
+        you see are steered by the same wind vector the flight model
+        subtracts from velocity to get airspeed — so when a gust crosses the
+        lake you can <em>watch</em> it arrive on the surface and <em>feel</em>
+        it drop a wing, and no code connects those two events except the
+        shared field. The water the bird floats on is the same five-wave sum
+        twice over: the GPU displaces the rendered surface with it, the CPU
+        answers <code>waterHeightAt</code> with it, so the mesh you see and
+        the function the physics queries can never drift apart —
+        <a href="/stillwater.html">Glass Dawn</a> built that parity on
+        purpose. And the bus: the flight model has been emitting
+        <code>splash</code> and <code>skim</code> events since
+        <a href="/forces.html">Four Forces</a> — there was just nobody
+        listening. The lake's ring layer has been subscribed since
+        <a href="/stillwater.html">Glass Dawn</a> — there was just nobody
+        flying. Put both on one page and the wiring already exists. Almost
+        every arrow in this diagram was written posts ago; the hero scene
+        just lets the pulses flow:
+      </p>
+      <div data-demo="contracts"></div>
+
+      <h2><span class="kicker">Step 2 · One body</span>Dressing the point mass</h2>
+      <p>
+        The Lift series flies a dot. Its whole state is a position, a
+        velocity, a bank angle, and an angle of attack —
+        <a href="/forces.html">four forces on a point mass</a>, by design,
+        because game feel lives in how commands shape a few numbers. The New
+        Feathers bird, meanwhile, solves her entire pose fresh every frame
+        from a small pile of scalars: a gait setting, a
+        <a href="/flap.html">wingbeat clock phase</a>, a handful of
+        <a href="/poses.html">pose weights</a> chased by springs. Nothing
+        plays a clip. That choice was made for animation reasons long before
+        flight existed — and it turns out to be exactly the shape integration
+        wants, because the flight model's diagnostics are scalars too. The
+        bridge between a physics dot and a feathered body is about a dozen
+        assignments per frame:
+      </p>
+      <pre>orientation ← airflow direction, lift direction, α   (the glyph's trick)
+gait        ← flap effort, airspeed                   (glide ↔ cruise ↔ hover)
+tuck pose   ← the model's tuck command
+brake pose  ← height above water × sink rate          (the flare, as physics)
+bank        ← body.bank                               (lift rolls between wings)</pre>
+      <p>
+        Only one seam fought back: there were two wingbeat clocks. The flight
+        model has owned a <code>flapPhase</code> since
+        <a href="/joy.html">The Joy Pass</a> — the camera's flap-bob keys off
+        it, and the audio series will key its wing whumps off it too. The
+        animator had its own clock from <a href="/flap.html">The Flap
+        Cycle</a>. Run both and they drift apart within seconds: wings beating
+        visibly out of time with the camera bob they're supposed to cause.
+        The fix is demotion. The animator's phase is now <em>assigned</em>
+        from the model's clock every frame, never advanced on its own — one
+        clock, three subscribers. Slide the effort and watch frequency,
+        thrust, airspeed, wings, and camera bob all move together, because
+        they are all reading one number:
+      </p>
+      <div data-demo="wingbeat"></div>
+      <aside class="note">
+        <span class="note-label">Aside · The bird is still a dot</span>
+        <p>
+          Nothing about the physics changed in this post. Lift, drag, weight,
+          and thrust still act on a single point; the mesh is a costume the
+          point wears. This is the oldest trick in game animation, and it is
+          honest where it counts — the forces really do come from α and
+          airspeed — and cheap where it doesn't: no per-feather aerodynamics,
+          no articulated inertia. If the dive someday needs the wings to
+          carry real force (a mid-tuck gust catching one wing), the contract
+          point is that there is still exactly one body to apply it to.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 3 · The handoff</span>Who owns the bird</h2>
+      <p>
+        The flight model treats water as a floor, not a fail state: clamp the
+        altitude, scrub speed with belly drag, announce a splash. That is
+        perfect for a botched low pass and useless for floating — a floor
+        holds the keel dry, and there is no buoyancy anywhere in the
+        aerodynamics, nor should there be.
+        <a href="/touchgo.html">Touch and Go</a> already solved floating with
+        Archimedes linearized into a damped spring toward
+        <code>waterHeightAt − immersion</code> — but that bird flew a script.
+        Now a player can arrive at the surface in any state, at any speed,
+        from any angle. The real integration question of this milestone
+        turned out to be: <em>who integrates the body this frame?</em>
+      </p>
+      <p>
+        The answer is a three-state ownership machine, and it is small enough
+        to recite. <strong>Air</strong>: the flight model owns the bird.
+        <strong>Float</strong>: the buoyancy spring owns it, plus wind drift
+        and water drag. <strong>Run</strong>: a takeoff script owns it —
+        near-vertical hover strokes, speed building stride by stride, lift
+        following speed. The transitions are the design. Skimming below a
+        ground-speed threshold hands the body to the water. Holding flap
+        hands it to the run. Climbing clear, fast enough, hands it back to
+        the aerodynamics mid-wingbeat. Through every change of government the
+        same <code>FlightBody</code> stays the storage for position and
+        velocity, so the <a href="/stick.html">chase camera</a> and the
+        published <a href="/joy.html">FlightState telemetry</a> never notice
+        a seam. And every owner speaks the same language on the way through:
+        a <code>splash</code> at touchdown, slow <code>wake</code> pulses
+        while drifting, a <code>skim</code> per stride on the run — all of it
+        rings today, all of it fluid momentum and headphone audio in seasons
+        to come. Below, an autopilot loops the full cycle forever; the
+        readout names the current owner, and the sliders move the borders
+        between the three governments:
+      </p>
+      <div data-demo="handoff"></div>
+      <aside class="note">
+        <span class="note-label">Aside · The shake</span>
+        <p>
+          Real ospreys add a fourth state we don't have yet. A few wingbeats
+          after hauling out of the water, the bird rouses mid-air — a
+          full-body shake, exactly like a wet dog, that flings a cloud of
+          spray and costs a visible moment of ragged flight. Plumage sheds
+          most of the water, but a soaked osprey can be carrying a meaningful
+          fraction of her own body weight in it, and the shake is worth the
+          wobble. It's high on the list for the splash season: the cloud of
+          droplets is a particle problem, and the wobble is one line in the
+          flight model.
+        </p>
+      </aside>
+
+      <p>
+        That's the milestone: fly, land, float, take off — the verb
+        <em>soar</em>, playable end to end, built from three libraries that
+        had never met before this page and one page of glue that mostly
+        signs contracts already written. It's also, honestly, a stage set.
+        The mountains are silhouette props; the lake has no bed under it;
+        the splash is a polite analytic ring. Season 2 starts digging. The
+        Basin series carves a real glacial valley — terrain whose windward
+        slopes will feed the <a href="/updrafts.html">ridge-lift influences
+        the wind field already accepts</a>. And The Splash replaces the rings
+        with a real fluid simulation living in a window around the bird.
+        Here's the part I'm most confident about, and it's a direct payoff of
+        Step 1: because every floating thing asks <code>waterHeightAt</code>
+        instead of a particular implementation, the float you just played
+        survives that swap without changing a line. The provider changes
+        behind the function; the bird won't know the difference. She'll just
+        finally make a real hole in the water — which is good, because next
+        season she learns the verb the whole game hangs on. Season 1 was
+        <em>fly</em>. Season 2 is <em>dive</em>.
+      </p>
+    </main>
+    <footer>
+      <p>
+        <a href="https://github.com/ericrius1/stillwater">Source on GitHub</a>
+      </p>
+    </footer>
+    <script type="module" src="/src/firstflight.ts"></script>
+  </body>
+</html>

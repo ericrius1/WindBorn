@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>Morning Mist — Stillwater</title>
+    <meta
+      name="description"
+      content="Aerial perspective on the far ridges, exponential height fog in closed form, and the dawn lake mist that condenses before sunrise and burns off on the world clock."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-mist"></div>
+      <div class="hero-title">
+        <h1>Morning Mist</h1>
+        <p class="subtitle">
+          Distance has a color, and dawn has a breath. This post gives the air
+          thickness: ridges that fade by Beer–Lambert, fog that pools where the
+          math says it must, and the lake's morning exhalation — condensing in
+          the cold hours, burning off as the sun climbs. Press play and let it.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Fish Hawk opens on mist. That has been the plan since the first sketch:
+        the player arrives at dawn, the lake is glass under a low white blanket,
+        and as they learn to fly the blanket quietly leaves. It is the world
+        clock made visible — the same <code>clock.hour</code> that placed
+        <a href="/air.html">last post's sun</a> now decides how much water hangs
+        in the air. But mist is just the loudest case of something every outdoor
+        frame needs: <em>air you can see across</em>. A mountain three kilometers
+        away does not look like a mountain thirty meters away painted small; it
+        looks washed, lifted toward the sky color, its contrast eaten. Painters
+        call it aerial perspective and have faked it for six centuries. We get to
+        compute it, because we already own every ingredient.
+      </p>
+
+      <h2><span class="kicker">Step 1 · Aerial perspective</span>Distance, by Beer–Lambert</h2>
+      <p>
+        Recall the one-sentence sky from <a href="/air.html">The Color of Air</a>:
+        light crossing air is attenuated by <code>T = e^(−β·d)</code>, and what
+        replaces it is in-scattered sky. Both halves apply to a <em>ridge</em>
+        just as well as to the sky behind it. Light leaving the rock loses
+        <code>1 − T</code> of itself before reaching you; the very same air
+        scatters skylight into the path, adding fog color in exactly the
+        proportion it stole. One mix covers both:
+      </p>
+      <pre><code>seen = mix(fogColor, surfaceColor, e^(−β·d))</code></pre>
+      <p>
+        That exponential is why depth reads the way it does: each kilometer
+        multiplies the surviving contrast by the same factor. At
+        <code>β = 2.2×10⁻⁴/m</code>, one kilometer keeps ~80%, three keep ~50%,
+        and the rim of the <a href="/cirque.html">cirque</a> goes properly
+        atmospheric. The fog color is not a constant grey, either — it is the
+        <code>skyColors(hour)</code> palette's fog entry, so distance is warm at
+        golden hour and slate-blue before dawn, for free. The terrain below is
+        the <a href="/farshore.html">real basin</a>; drag to pan along the rim
+        and pull the air-density slider through its range.
+      </p>
+
+      <div data-demo="aerial-ridges"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · Why painters got it right first</span>
+        <p>
+          Leonardo's notebooks describe painting distant things "bluer and less
+          distinct, in proportion to their distance" — an empirical Beer–Lambert,
+          four hundred years before Beer or Lambert. The proportionality he
+          eyeballed is our exponent; the "bluer" is the in-scattered term being
+          sky-colored. A good landscape painter is an analog renderer with very
+          good priors.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · Height fog</span>The exponential layer, in closed form</h2>
+      <p>
+        Uniform fog is a lie with a short shelf life: real air thins with
+        altitude. Density follows <code>ρ(y) = ρ₀·e^(−y/H)</code>, where the
+        scale height <code>H</code> says how fast — and the lovely thing is that
+        the integral along a straight ray has a closed form, so we never march a
+        single step. For a ray from camera height <code>y₀</code> to a point at
+        <code>y₁</code>, distance <code>d</code>, the optical depth works out to
+      </p>
+      <pre><code>τ = ρ₀ · d · e^(−y₀/H) · (1 − e^(−Δ))/Δ,   Δ = (y₁ − y₀)/H</code></pre>
+      <p>
+        — the plain <code>ρ₀·d</code> you would have guessed, corrected by where
+        the ray sits in the column. As <code>Δ → 0</code> the correction goes to
+        1 and we recover constant-density fog; that limit needs explicit handling
+        in the shader or a level ray divides by zero. Two sliders below: with
+        <code>H</code> large the fog is an even haze; squash it to a few meters
+        and it pools into a fog <em>sea</em> in the basin with the ridges riding
+        above — the inversion-layer shot every mountain photographer camps for.
+        Half the column always sits below <code>0.69·H</code> (that is ln 2
+        doing its usual work).
+      </p>
+
+      <div data-demo="height-fog"></div>
+
+      <h2><span class="kicker">Step 3 · The exhale</span>Mist on the world clock</h2>
+      <p>
+        Now make it dawn. Lake mist is height fog with a biography: overnight the
+        land radiates its heat away, the air an arm's length above the water
+        cools below its dew point, and the lake — still holding yesterday's
+        warmth — feeds vapor into it. It condenses: a layer a few meters thick,
+        dense, sitting exactly on the water. After sunrise the new sun heats the
+        air back through the dew point and the mist evaporates from the top
+        down, gone by mid-morning. We encode that life as a schedule,
+        <code>mistAmountForHour(hour)</code>: rising through the small hours,
+        holding through first light, burning off between seven and half past
+        nine, with a smaller return after dusk.
+      </p>
+      <p>
+        Structurally the mist is a second exponential layer — <code>H</code> of
+        five meters against the air's nine hundred — and the two optical depths
+        simply add before the final exponent, because that is how transparent
+        media stack. One more honesty knob: a uniform blanket looks like dry ice,
+        so the mist column is modulated by drifting fractal noise — wisps —
+        advected by the <a href="/updrafts.html">one wind field</a>, sampled at
+        nose height. The same wind that will carry the bird carries the morning.
+      </p>
+
+      <div data-demo="burnoff"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · The declared approximation</span>
+        <p>
+          The closed form assumed the layer is horizontally uniform; wisps break
+          that assumption, so where exactly along the ray should the noise be
+          sampled? We sample once, at the far end, and accept the error — a real
+          answer means marching the ray, which is a budget we are saving for the
+          <a href="/clouds.html">clouds</a>. Watch the wisps closely and you can
+          catch the cheat; watch them casually and you never will. Most realtime
+          fog is built from exactly this kind of negotiated surrender.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 4 · Assembly</span>One dawn, three layers</h2>
+      <p>
+        The hero scene at the top of this page is the three steps composed:
+        aerial perspective on the rim, a whisper of valley haze, and the
+        scheduled mist riding the clock — over the same
+        <code>LakeSurface</code>-recipe water from
+        <a href="/stillwater.html">Glass Dawn</a>, rebuilt here with a tint hook
+        so the fog gets the final word on every fragment. Nothing in the scene
+        knows about anything else; they all just read the spine. The clock turns,
+        the sun climbs, the palette warms, the mist thins. Witness, the verb.
+      </p>
+
+      <h2><span class="kicker">Onward</span>What this unlocks</h2>
+      <p>
+        The air now has color and thickness — but it is still empty. Next post we
+        put something <em>in</em> it: real volumetric cumulus, raymarched through
+        a density field, self-shadowed, silver-lined, and drifting on the same
+        wind that just carried our wisps. The fog math stays in the toolbox too:
+        aerial perspective will swallow the far clouds the same way it swallowed
+        the far ridges. The sky is about to get furniture.
+      </p>
+    </main>
+    <footer>
+      <p>Stillwater — building Fish Hawk in public, one system at a time.</p>
+    </footer>
+    <script type="module" src="/src/mist.ts"></script>
+  </body>
+</html>

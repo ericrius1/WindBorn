@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>Snell's Window — Stillwater</title>
+    <meta
+      name="description"
+      content="From underwater, the entire sky compresses into a circle 97° wide — and beyond its rim the surface becomes a perfect mirror. Deriving the critical angle and rendering both regimes."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-snell"></div>
+      <div class="hero-title">
+        <h1>Snell's Window</h1>
+        <p class="subtitle">
+          Look up from underwater and the whole sky — horizon to horizon — fits
+          inside one bright circle. Outside it, the surface mirrors the lake back
+          at itself. One angle separates the two, and we can derive it in a line.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        In <a href="/lens.html">the last post</a> the camera learned to cross the
+        surface; this post decides what it sees once it's down there. Fish Hawk's
+        underwater second plays out staring at the ceiling of the lake — the osprey
+        grabs, turns, and rows for the light — so that ceiling has to be worth
+        staring at. And the physics hands us something better than any matte painting:
+        from below, the air–water interface splits into two sharply different regimes.
+        Straight overhead, a circle of compressed sky. Everywhere else, a mirror — not
+        a tinted, partial, Fresnel-ish mirror, but a <em>perfect</em> one. The whole
+        thing falls out of the refraction law we've been using since
+        <a href="/depths.html">we first looked into the shallows</a>, just run in the
+        opposite direction.
+      </p>
+
+      <h2><span class="kicker">Step 1 · The derivation</span>Running Snell backwards</h2>
+      <p>
+        Snell's law relates the angles (measured from the surface normal) on the two
+        sides of an interface: <code>n₁·sin θ₁ = n₂·sin θ₂</code>. Going air→water,
+        as in <a href="/depths.html">Seeing the Bottom</a>, light bends <em>toward</em>
+        the normal: divide by <code>n = 1.333</code> and the angle shrinks. Going
+        water→air the same equation bends rays <em>away</em> from the normal:
+      </p>
+      <pre><code>sin θ_air = n · sin θ_water</code></pre>
+      <p>
+        Now push the underwater angle steeper and watch the right-hand side. At
+        <code>θ_water = 30°</code>, <code>sin θ_air = 0.667</code> — fine, the ray
+        exits at 41.8°. At 45°, <code>sin θ_air = 0.943</code> — the exit ray is
+        skimming at 70.5°. And the moment <code>n·sin θ_water</code> reaches 1, the
+        exit ray lies flat in the surface itself. Beyond that there is no solution:
+        no real angle has a sine greater than one. The crossover is the
+        <em>critical angle</em>:
+      </p>
+      <pre><code>sin θc = 1/n  →  θc = asin(1/1.333) ≈ 48.6°</code></pre>
+      <p>
+        Past θc the interface stops transmitting entirely — total internal
+        reflection. Not 98% like a good household mirror; all of it, by conservation,
+        because there is nowhere else for the energy to go. And the handoff isn't a
+        hard switch: the Fresnel equations (the same ones from
+        <a href="/skin.html">the skin of the lake</a>, by reciprocity) send the
+        reflected share climbing smoothly to 1 as θ approaches θc, so the window dims
+        into the mirror at its rim rather than cutting. Scroll the derivation:
+      </p>
+
+      <div data-scrolly="critical"></div>
+
+      <p>
+        The ray toy below runs the numbers live: drag the angle and read off the exit
+        direction and the Fresnel split. Watch the transmitted arrow starve as the
+        reflected one brightens, then vanish entirely at 48.6°:
+      </p>
+
+      <div data-demo="critical-angle"></div>
+
+      <h2><span class="kicker">Step 2 · The geometry</span>The circle overhead</h2>
+      <p>
+        Flip the picture around — light runs the same paths in both directions, so an
+        underwater eye receives sky along exactly the rays that could have exited.
+        Every direction within 48.6° of vertical sees through to the air; every
+        direction outside doesn't. That's a cone, apex at your eye, opening 97.2°
+        wide, and the entire 180° dome of the sky maps into it: the zenith at its
+        center, the horizons compressed into its last sliver of rim. The squeeze is
+        wildly nonuniform — the middle of the window is a nearly honest sky, while
+        the outermost degree of cone holds tens of degrees of low sky folded together,
+        which is why the rim of a real Snell's window burns with whatever color the
+        horizon has.
+      </p>
+      <p>
+        The cone's angle never changes, but the circle it cuts in the surface grows
+        with depth: <code>r = d·tan θc ≈ 1.13·d</code>. Sink to two meters and your
+        window is a 4.5&nbsp;m circle; the rest of the surface, out to every horizon, is
+        mirror. The demo draws a thin marker ring at exactly <code>d·tan θc</code> so
+        you can check the rendered window against the formula — and an IOR slider, because
+        nothing proves a derivation like grabbing its one parameter. Drag <code>n</code>
+        toward 1 and the window swallows the whole ceiling (no bending, no TIR); push
+        it toward diamond-ish 1.8 and the sky shrinks to a porthole:
+      </p>
+
+      <div data-demo="window-circle"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · The fish already knew</span>
+        <p>
+          Everything that hunts through this interface lives by its geometry. A trout
+          holding station sees the entire above-water world — herons, anglers,
+          ospreys — through its private 97° porthole, which is why experienced
+          fishermen crouch: dropping your silhouette toward the horizon pushes you
+          into the compressed rim where you're a smear of color, or out of the window
+          entirely. The osprey plays the other side of the same projection — its
+          steep final approach in the dive isn't just about refraction error at the
+          fish, it also keeps the bird inside the blown-out brightness around the
+          window's center, where wings are hardest to pick out against glare.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 3 · The mirror</span>Outside the glass</h2>
+      <p>
+        Now render it. The ceiling is the same displaced plane as the
+        <a href="/stillwater.html">topside surface</a> — same wave table, same
+        uniforms, glued vertex-for-vertex so a crossing camera never sees a seam —
+        drawn back-face so it only exists from below. Per fragment we run the
+        machinery straight out of the derivation: <code>refract(view, −normal, n)</code>
+        hands back the exit direction, or the zero vector beyond the critical angle.
+        Inside the window we look that exit direction up in the sky (sun disc
+        included, so the sun hangs <em>inside</em> the circle at its refracted
+        position) and pay the Fresnel transmittance. Outside, <code>reflect()</code>
+        sends the view ray back down into the lake, and the mirror shows what the lake
+        has: the medium's glow, and anything bright enough to matter. In this demo,
+        five drifting beacons — each one is mirrored analytically by reflecting its
+        position across the surface plane, the way a flat mirror makes images, so
+        every glow in the ceiling outside the window has a real object below it:
+      </p>
+
+      <div data-demo="tir-mirror"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · Why the rim shimmers</span>
+        <p>
+          On real lakes the window's edge is never a clean circle — it frays and
+          breathes. The reason is in the normals: every passing wave tilts the local
+          surface, and a tilted facet carries its own critical cone with it. A 5°
+          wave slope swings the local window edge by 5°, so the rim becomes a band
+          where window and mirror interleave at wave frequency. We get this for free:
+          the refract/reflect split runs on the rippled normal from
+          <a href="/ripples.html">the wave table</a>, not the flat plane, so wind
+          speed directly sets how nervous the boundary is. Glass calm, razor rim;
+          breeze, boiling lace.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Onward</span>What this unlocks</h2>
+      <p>
+        The underwater world now has its ceiling: a sky compressed into a circle, a
+        mirror beyond it, a rim that responds to the wind, and a sun that sits where
+        refraction says it should. The grab moment finally has something overhead
+        worth composing against. But the same bent sunlight that builds the window
+        doesn't stop at the surface — it keeps going down, and the waves focus it
+        into writhing bright filaments on the lakebed. Those caustics, the fog the
+        light dies into, the shafts it draws through the water, and the bubbles that
+        rise through all of it are the next post — the last one before we assemble
+        the dive.
+      </p>
+    </main>
+    <footer>
+      <p>Stillwater — building Fish Hawk in public, one system at a time.</p>
+    </footer>
+    <script type="module" src="/src/snell.ts"></script>
+  </body>
+</html>

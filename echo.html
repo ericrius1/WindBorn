@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Far Wall — Stillwater</title>
+    <meta
+      name="description"
+      content="Synthesizing the osprey's call with a two-voice syrinx model — detuned oscillator chains, chirp contours, a beak formant — then timing its echoes off the cirque walls with delay taps set by 2d/343."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-echo"></div>
+      <div class="hero-title">
+        <h1>The Far Wall</h1>
+        <p class="subtitle">
+          Put the bird anywhere on the basin, press call, and count the seconds
+          until the rock answers. The delays aren't designed — they're measured,
+          by rays marched across the same terrain function that built the
+          mountains.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        So far this season the world makes sound <em>at</em> the bird —
+        <a href="/rush.html">wind</a> from its own speed,
+        <a href="/watersong.html">water</a> from the bus. This post the bird
+        speaks, and the world speaks back. In Fish Hawk the call has jobs to do:
+        it's the player's presence in the valley, it will mark the nest, greet
+        the dawn, scold the eagle. But the real reason it's a whole post is the
+        <em>answer</em>. When we <a href="/cirque.html">carved the cirque</a>,
+        we ringed the lake with rock walls hundreds of meters high. Walls like
+        that have a voice of their own, and it arrives on a schedule set by
+        nothing but distance and the speed of sound — which means we can compute
+        it, exactly, from terrain we already have.
+      </p>
+
+      <h2><span class="kicker">Step 1 · The instrument</span>A throat with two voices</h2>
+      <p>
+        A bird's voice box is not like ours. Where the trachea forks into the
+        lungs sits the <em>syrinx</em> — and because it sits at the fork, it has
+        two independent sound sources, one per bronchus, each with its own
+        vibrating membranes and its own muscle control. Songbirds can sing two
+        unrelated notes at once. Even when both sides voice the same note,
+        they're never perfectly tuned to each other, and the slight mistuning
+        beats — a shimmer no single oscillator can fake.
+      </p>
+      <p>
+        So the model is honest about the anatomy: <strong>two</strong> parallel
+        chains, each a sine oscillator pushed through a soft-clip waveshaper —
+        membranes driven hard don't move sinusoidally, and that clipping adds
+        the harmonics that read as <em>animal</em> rather than <em>test
+        tone</em>. Voice two sits about 30 cents sharp and its pitch contour
+        lags by twelve milliseconds, because it's an independent source, not a
+        chorus effect. Both sum into one bandpass formant near 2.4&nbsp;kHz —
+        the resonance of the trachea and open beak. The chirp itself is a
+        frequency envelope: from <code>f₀</code> up to <code>1.32·f₀</code> in
+        the first third, then falling past the start to <code>0.82·f₀</code> —
+        the rise-and-fall arc of the osprey's familiar <em>cheep</em>, around
+        1.6–2.3&nbsp;kHz, repeated three to four times a second, creeping
+        upward as urgency rises. Compare one voice against two below — the
+        difference is the bird.
+      </p>
+      <div data-demo="syrinx"></div>
+      <aside class="note">
+        <span class="note-label">Aside · The whistle mismatch</span>
+        <p>
+          For a raptor that looks like it should scream, the osprey sounds
+          almost comically gentle — field guides reach for "whistled",
+          "plaintive", even "chirping kettle". Hollywood agrees: when a bald
+          eagle appears on screen, the cry you hear is usually a red-tailed
+          hawk, because the eagle's real voice is a giggle. We get to keep the
+          osprey's true voice — at game scale, a clear quiet whistle over still
+          water carries more atmosphere than any stock screech.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · One wall</span>The 2d/343 tap</h2>
+      <p>
+        Now the answer. Sound crosses valley air at 343&nbsp;m/s. A call that
+        reaches a rock face at distance <code>d</code> and bounces straight back
+        arrives
+      </p>
+      <pre><code>delay = 2·d / 343 seconds</code></pre>
+      <p>
+        after it left — the entire mechanism of an echo, one division. Loudness
+        falls with the round trip: pressure spreads spherically as
+        <code>1/r</code> over <code>2d</code>, times a reflectivity for the rock
+        (we use 0.75 for steep faces). At lake scale that honest law gives
+        −50&nbsp;dB echoes — physically right, mix-wise useless — so we
+        compress it to <code>√(1/2d)</code>, which keeps the ordering (near
+        walls loud, far walls faint) at audible levels, and we say so instead of
+        hiding it. Distance also dulls: air absorbs high frequencies first, so
+        each tap gets a lowpass whose cutoff falls with <code>d</code>. One
+        wall, one slider, one clap below — then scroll the diagram to see the
+        full geometry play out.
+      </p>
+      <div data-demo="delaylab"></div>
+      <div data-scrolly="echogeometry"></div>
+
+      <h2><span class="kicker">Step 3 · The ring</span>Marching the basin</h2>
+      <p>
+        The cirque isn't one wall — it's a ring of them, every bearing a
+        different distance. Finding them is a raymarch over
+        <code>terrainHeightAt</code>, the same canonical height function
+        <a href="/cirque.html">every mesh on this site displaces by</a>. From
+        the bird we walk ten compass rays outward in 12&nbsp;m steps until the
+        terrain rises above flight height. Not every hit deserves an echo: a
+        beach that drifts up through our altitude is a grazing surface, not a
+        reflector, so we check the local slope along the ray and give
+        reflectivity only to steep rock — gentle ground lets the ray keep
+        marching until it finds a face worth bouncing off. Each surviving hit
+        becomes a tap: <code>{delay, gain, cutoff, pan}</code>, the pan set by
+        the wall's bearing so the answer comes from the right side of your
+        head.
+      </p>
+      <p>
+        The hero is this code running live. Click around the basin: near the
+        headwall the first echo returns inside a second; over the lake's center
+        the whole ring answers between two and five seconds in a spread chord;
+        drop the altitude slider low over the outlet valley and watch taps
+        vanish — the notch we carved for the lake to drain through is also a
+        gap in the sound. And because the taps refresh as the bird moves, echo
+        timing becomes <em>navigation</em>: short delay means wall coming,
+        symmetric delays mean center of the lake. File that thought — the
+        finale will fly on it.
+      </p>
+      <aside class="note">
+        <span class="note-label">Aside · First order only</span>
+        <p>
+          Real valleys echo echoes: wavefronts bounce wall to wall, smearing
+          into seconds of reverberant tail. We stop at first-order reflections —
+          ten taps, no feedback — because the legible, countable answer
+          <em>cheep…&nbsp;cheep</em> is the version that carries information a
+          player can use. A feedback delay network could fake the tail cheaply,
+          and the score post's pads will supply that sense of wash instead. A
+          design choice, recorded here so future-us knows it was on purpose.
+        </p>
+      </aside>
+
+      <p>
+        The bird has a voice; the valley has a shape you can hear. With
+        <a href="/rush.html">wind</a>, <a href="/watersong.html">water</a>, and
+        now the call, every <em>diegetic</em> sound in Fish Hawk exists — sound
+        with a physical cause inside the world. What's missing is the layer
+        with no source at all: music. Next post builds the adaptive score —
+        layers keyed to altitude, the <a href="/stillwater.html">world
+        clock</a>, and the weather, crossfaded with the equal-power math that
+        keeps a mix steady while everything in it moves.
+      </p>
+    </main>
+    <footer>
+      <p><a href="https://github.com/ericrius1/stillwater">Source on GitHub</a></p>
+    </footer>
+    <script type="module" src="/src/echo.ts"></script>
+  </body>
+</html>

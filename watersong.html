@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>What Water Says — Stillwater</title>
+    <meta
+      name="description"
+      content="Splash synthesis from disturbance-bus events — a noise slap, a Minnaert-resonance bloop, a droplet tail — plus shore lapping derived from the live wave state and rain as granular synthesis."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-watersong"></div>
+      <div class="hero-title">
+        <h1>What Water Says</h1>
+        <p class="subtitle">
+          Every ring on this lake is a disturbance-bus event, and every sound is
+          the same event, heard. Click the water anywhere — closer is louder,
+          left is left — and turn the rain up until it sings.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Fish Hawk's whole hunt is acoustic at the end: spot, dive,
+        <em>splash</em>. <a href="/rush.html">Last post</a> gave the dive its
+        rising scream; this one gives it the payoff — and not just for the
+        player's own strikes. The lake is supposed to feel inhabited, and a lake
+        you can hear inhabits itself: a fish rises behind you and you turn
+        before you think. The infrastructure for all of this has existed since
+        <a href="/touchgo.html">Touch and Go</a>, when the bird first started
+        publishing <code>disturb()</code> events on contact. The
+        <a href="/touchgo.html">disturbance bus</a> already carries every
+        splash, rise, raindrop, and wingtip kiss as a tiny record:
+        <code>{kind, x, z, energy, radius}</code>. The fluid sim will listen to
+        that bus someday. The foam layer will listen to it. Today, a synthesizer
+        listens to it.
+      </p>
+      <p>
+        That's the design worth pausing on: the audio doesn't get special
+        events. The same fields that will size a wave tell us everything a sound
+        needs — <em>where</em> gives distance and stereo side, <em>energy</em>
+        gives loudness and, as we're about to derive, pitch.
+      </p>
+
+      <h2><span class="kicker">Step 1 · Anatomy</span>Slap, bloop, and the bubble formula</h2>
+      <p>
+        Listen to anything hitting water and you'll hear three sounds in strict
+        order. First the <strong>slap</strong> — the surface tearing open, a
+        broadband noise burst a few tens of milliseconds long. Then the
+        <strong>body</strong> — the famous <em>bloop</em>. When an object
+        punches through, it drags a cavity of air underwater, and that cavity
+        rings like a bell. Its pitch comes from a hundred-year-old result, the
+        Minnaert resonance: an air bubble of radius <code>R</code> in water
+        oscillates at
+      </p>
+      <pre><code>f ≈ 3.26 / R    (R in meters, f in hertz)</code></pre>
+      <p>
+        — derived by balancing the springiness of the compressed air against the
+        inertia of the water around it. The constant is
+        <code>√(3γP₀/ρ)/2π</code> with γ&nbsp;=&nbsp;1.4 for air and lake-surface
+        pressure and density plugged in. It says everything we need: a
+        talons-first strike entrains a ~5&nbsp;cm cavity and rings near
+        65&nbsp;Hz, deep and round; a raindrop entrains a 3&nbsp;mm bubble and
+        plinks above a kilohertz. And because the cavity shrinks as it collapses,
+        the pitch <em>glides up</em> — that rising character is what makes a
+        bloop a bloop. Third comes the <strong>tail</strong>: the crown's
+        droplets fall back, each making its own millimeter bubble — a sparse
+        shower of high plinks trailing off.
+      </p>
+      <p>
+        One number drives all three. The bus's energy scalar sets a length scale
+        <code>size&nbsp;=&nbsp;∛E</code> (energy to length, the cube root), and
+        from it the cavity radius, the slap brightness, the loudness, and the
+        droplet count. Take the splash apart below — each button plays one
+        component — then slide the energy from raindrop to strike and listen to
+        the Minnaert pitch fall as the cavity grows.
+      </p>
+      <div data-demo="anatomy"></div>
+      <aside class="note">
+        <span class="note-label">Aside · Minnaert's bell</span>
+        <p>
+          Marcel Minnaert published the bubble-resonance formula in 1933 in a
+          paper titled <em>On musical air-bubbles and the sounds of running
+          water</em> — he wanted to know why brooks babble. The answer is that a
+          brook is a bubble factory, and every bubble chimes once at the
+          frequency its radius dictates. All water sound is, more or less,
+          bubbles being born: rain, surf, wakes, your faucet. Synthesists love
+          the formula because it's invertible — choose a pitch, and you know how
+          big the splash that makes it must be.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · The bus</span>Events become voices</h2>
+      <p>
+        Wiring the synth to the world is now almost embarrassingly short. We
+        subscribe once to the bus. Each event computes its distance and bearing
+        from the listener — the bird's ears, read from the same
+        <code>flightState</code> the <a href="/rush.html">wind synth</a> tracks
+        — and gets a tiny spatial chain: a gain for distance
+        (<code>1/(1+(d/18)²)</code>, a soft inverse-square), a lowpass for air
+        absorption (distant splashes lose their highs first), and a stereo pan
+        from the left-right component of the bearing. Then the event's
+        <code>kind</code> picks a recipe: a <code>rise</code> is nearly all
+        bloop — fish barely break the surface; a <code>skim</code> is all slap
+        and droplets — a wingtip never entrains a cavity; a full
+        <code>splash</code> gets the complete anatomy. The hero above is exactly
+        this code: the rings you see and the sounds you hear are the same bus
+        messages, consumed by two different subscribers.
+      </p>
+      <p>
+        There's one defensive layer worth confessing: a voice budget. A storm
+        can put hundreds of events per second on the bus, and each full splash
+        is a dozen scheduled nodes. The listener spends from a budget of about
+        six splashes a second, refilled continuously — beyond that, events are
+        dropped, starting with the ones too far away to matter. You cannot hear
+        the difference; you can absolutely hear the audio thread surviving.
+      </p>
+
+      <h2><span class="kicker">Step 3 · Lapping</span>The shore, derived, not looped</h2>
+      <p>
+        Between events, a lake is never silent — it laps. The lazy move is a
+        looped recording, but we have something better: the actual surface. The
+        spine's <code>waterHeightAt(x, z, t)</code> is the same wave sum that
+        <a href="/stillwater.html">the Mirror series</a> renders and the same
+        one the bird <a href="/touchgo.html">floats on</a>, so we ask it, every
+        frame, how fast the surface is moving at the listener:
+        <code>|∂h/∂t|</code>. That rate drives an envelope follower — fast
+        attack, slow release — which gates a band of pink noise. Each passing
+        crest swells the wash; each trough lets it sigh back. Raise the wind
+        below and the lapping grows and brightens <em>because the waves do</em>:
+        wind speed scales the spine's wave amplitudes, which steepens
+        <code>∂h/∂t</code>, which opens the gate wider. Nothing in the audio
+        knows about wind. It only knows the water, which knows the wind.
+      </p>
+      <div data-demo="lapping"></div>
+
+      <h2><span class="kicker">Step 4 · Rain</span>A texture made of events</h2>
+      <p>
+        Rain is the bus's stress test and the prettiest demo of the
+        event-driven idea. One raindrop is just a very small splash — energy
+        around a millijoule, a millimeter bubble, a single bright plink (press
+        the button below). A storm is thousands of them, and at that density we
+        switch to <em>granular</em> thinking: each rain event becomes a single
+        cheap grain — fifteen milliseconds of highpassed noise, one in six
+        carrying a plink — and texture emerges purely from statistics. Slide the
+        rate up and listen to the transition: at five drops a second you hear
+        individual plinks; at fifty you hear rhythm dissolving; at two hundred
+        it fuses into the broadband hush every roof has taught you. The
+        spectrum below shows the fusion happening — discrete spikes blurring
+        into a smooth band.
+      </p>
+      <div data-demo="rain"></div>
+      <aside class="note">
+        <span class="note-label">Aside · Why grains, not voices</span>
+        <p>
+          The full splash recipe at 200 events/s would schedule ~2,400 audio
+          nodes per second and bring the graph to its knees. The grain costs two
+          nodes and is gone in 30 ms. This is the standard granular-synthesis
+          trade: below ~20 events/s the ear tracks individuals, so spend on
+          fidelity; above it the ear hears population statistics, so spend on
+          density. The crossover is audible in the demo if you listen for the
+          moment "drops" become "rain".
+        </p>
+      </aside>
+
+      <p>
+        The lake now answers: strikes boom, rises bloop behind you, the shore
+        breathes with the wind, and weather will arrive on the bus already
+        audible. Two senses down. But both so far are <em>reactive</em> — the
+        world making sound at the bird. Next post the bird talks back: we build
+        the osprey's own call from the strange double instrument in its throat,
+        and then we let <a href="/cirque.html">the cirque walls</a> we carved in
+        Season 2 answer it, on a delay set by nothing more than geometry and the
+        speed of sound.
+      </p>
+    </main>
+    <footer>
+      <p><a href="https://github.com/ericrius1/stillwater">Source on GitHub</a></p>
+    </footer>
+    <script type="module" src="/src/watersong.ts"></script>
+  </body>
+</html>

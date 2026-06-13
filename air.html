@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Color of Air — Stillwater</title>
+    <meta
+      name="description"
+      content="A single-scattering sky model and a sun that keeps time with the world clock: celestial geometry, Rayleigh blue, Mie haze, and the hours photographers chase — derived for Fish Hawk."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-air"></div>
+      <div class="hero-title">
+        <h1>The Color of Air</h1>
+        <p class="subtitle">
+          Fish Hawk's world runs on one clock, and the sky is its face. This post
+          derives a sun that knows the hour and an atmosphere that knows what to do
+          with it — blue noons, red sunsets, and the slow grade between. Press play
+          and watch a whole day pass over the lake.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Of Fish Hawk's five verbs, the quietest one is <em>witness</em>: the world
+        runs on a clock, and the player gets to be there for it. Dawn mist burning
+        off glass water, the dusk hatch boiling at golden hour, a storm front
+        shouldering over the rim — every one of those moments is, underneath, the
+        same variable: <code>clock.hour</code>. The spine has carried that number
+        since the project began, and back in
+        <a href="/stillwater.html">Glass Dawn</a> we promised that its hand-keyed
+        five-stop sunrise was a placeholder — one hour value in, sun vector and
+        colors out, fidelity to follow. This series is the follow. Today we build
+        the real thing: where the sun is at any hour, and why the air between us
+        and it has a color at all.
+      </p>
+
+      <h2><span class="kicker">Step 1 · The sun</span>One axis, two angles</h2>
+      <p>
+        Forget the solar system; stand on the lake. From here the entire sky is a
+        rigid dome that turns once a day around a single fixed axis — the celestial
+        pole, which at our latitude <code>φ = 46.6°</code> stands exactly 46.6°
+        above the northern horizon. The sun is glued to that dome on a circle
+        offset from its equator by the <em>declination</em> <code>δ</code> — how
+        far north of the equator the season has pushed it. Stillwater fixes the
+        date in mid-April, when ospreys return to northern lakes, so
+        <code>δ = +5°</code> forever: one season, honestly declared. The only thing
+        that moves is the <em>hour angle</em> <code>H</code>: fifteen degrees per
+        hour, zero at solar noon.
+      </p>
+      <p>
+        Spin a vector around a tilted axis and read off its height — that is the
+        whole derivation. Express the sun in the rotating frame, tip the frame down
+        by the latitude, and the vertical component falls out as
+      </p>
+      <pre><code>sin e = sin φ · sin δ + cos φ · cos δ · cos H</code></pre>
+      <p>
+        where <code>e</code> is the sun's elevation above the horizon. The same
+        rotation gives the full 3D direction, which is what the code actually
+        returns: <code>sunDirection(hour)</code>, a unit vector in world space.
+        Scrub through the geometry below, then drag the live arc to see the
+        formula's day: sunrise just north of east, a 48° noon, a long northwestern
+        sunset.
+      </p>
+
+      <div data-scrolly="sun-geometry"></div>
+
+      <div data-demo="sun-arc"></div>
+
+      <h2><span class="kicker">Step 2 · The blue</span>Air is not transparent</h2>
+      <p>
+        Now point that sun at a sky and ask the real question: why is the air
+        <em>visible</em>? Because nitrogen and oxygen molecules scatter sunlight,
+        and they scatter it unfairly. Rayleigh's law says the scattering strength
+        goes as <code>1/λ⁴</code> — the fourth power of inverse wavelength — so
+        440&nbsp;nm blue light scatters about 5.7× more strongly than 680&nbsp;nm
+        red. We carry that law as three numbers, the scattering coefficients per
+        kilometer of air at red, green and blue wavelengths:
+        <code>βR = (0.0058, 0.0135, 0.0331)</code>.
+      </p>
+      <p>
+        The other ingredient is <em>how much air</em> a ray crosses. Treat the
+        atmosphere as a flat slab about 8&nbsp;km thick (its real density falls
+        exponentially; 8&nbsp;km is the equivalent uniform column). A ray leaving
+        your eye at elevation angle <code>e</code> crosses an air mass
+        <code>m ≈ 1/sin e</code> times the vertical column — 1 looking straight up,
+        ten or twenty out near the horizon. Multiply: the optical depth of the view
+        path is <code>τ = βR · 8 km · m</code>, per channel, and Beer–Lambert says
+        the fraction of light that survives it is <code>T = e^(−τ)</code> —
+        the same law that tinted the
+        <a href="/depths.html">lake's depths</a>, wearing thinner clothes.
+      </p>
+      <p>
+        The sky's radiance is then one honest sentence: <em>what the sun delivers,
+        times the chance it scatters toward you, times the chance the scattered
+        light survives the rest of the trip</em>. A real renderer integrates that
+        along the ray; we take a single sample that stands for the whole path:
+      </p>
+      <pre><code>L(view) = E_sun · T_sun · phase(θ) · (1 − T_view)</code></pre>
+      <p>
+        <code>(1 − T_view)</code> is the slab's total chance of redirecting light
+        into your eye — small and blue-dominated overhead (thin path, blue
+        scatters most: blue sky), saturating toward 1 in <em>every</em> channel at
+        the horizon (long path: the pale horizon band you have squinted at all
+        your life). <code>T_sun</code> is the sun's own transmittance through its
+        slant path, and it is doing quiet, important work — hold that thought one
+        step.
+      </p>
+
+      <h2><span class="kicker">Step 3 · The haze</span>Mie, the disc, and sunset for free</h2>
+      <p>
+        Molecules alone give a sky that is blue but strangely clean — no glow
+        around the sun, no warmth in the valley air. The missing population is
+        aerosols: dust, pollen, water droplets, all far bigger than a wavelength.
+        Their scattering (Mie scattering) is nearly colorblind — one coefficient,
+        not three — but fiercely directional: most light continues almost straight
+        ahead. We model that lobe with the Henyey–Greenstein phase function with
+        anisotropy <code>g = 0.76</code>, against Rayleigh's nearly-uniform
+        <code>(3/16π)(1 + cos²θ)</code>. The forward lobe is the white glare
+        around the sun; turn the <em>haze forwardness</em> slider below and watch
+        it tighten.
+      </p>
+      <p>
+        And the sunset? Already paid for. At <code>e = 2°</code> the sun's own
+        light crosses roughly twenty atmospheres of slant path, and Beer–Lambert
+        strips the blue out of it: <code>T_sun</code> comes back red. Every term lit
+        by the sun — the in-scatter, the haze glow, the visible disc itself —
+        inherits that color with no sunset keyframe anywhere in the code. Sunset is
+        not a color; it is white light minus its blue, and the model knows it
+        before we do.
+      </p>
+
+      <div data-demo="scattering"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · Two declared cheats</span>
+        <p>
+          First: a flat slab has no dawn. Real twilight is sunlight grazing the
+          curved shell of air above your head while you sit in shadow — geometry
+          our slab cannot express — so we soften the air-mass clamp and let the
+          sun keep feeding the sky for a few degrees below the horizon. Second:
+          the single sample under-saturates the daytime horizon, which real skies
+          whiten by light scattering <em>twice</em>. Our <code>(1 − T)</code> term
+          saturates in the same direction, which is why the cheat holds up.
+          Multiple scattering returns in the clouds post, where it cannot be
+          dodged.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 4 · The hours</span>Golden, blue, and the grade between</h2>
+      <p>
+        Put the two steps together and key the result to the spine clock, and the
+        photographer's vocabulary falls out as <em>regimes of one variable</em>,
+        the sun's elevation. Above ~7°: full day, white key light, blue fill.
+        Between 0° and 7°: golden hour — the air-mass curve goes steep, every
+        degree of elevation doubles down on the reddening, and the light goes long
+        and warm. From 0° to about −4°: blue hour — the disc is gone, direct light
+        is gone, and all that remains is sky-scattered blue arriving from
+        everywhere at once. Below −12°: night, which gets its own post. Scrub the
+        evening below and watch the regimes hand off; the readout names them as
+        you go.
+      </p>
+
+      <div data-demo="golden-hours"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · Why the lake never reads the clock</span>
+        <p>
+          The water in these demos is the same <code>LakeSurface</code> built in
+          <a href="/stillwater.html">The Mirror's finale</a>, completely unchanged.
+          It asks its environment for a sun vector, a sun color, and a
+          <code>skyColor(direction)</code> — and our atmosphere exports exactly
+          that shape. Light the world and the water lights itself; the contract
+          did its job, and the placeholder dawn retires with a clean conscience.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">The API</span>What the sky now exports</h2>
+      <p>
+        Everything above ships in <code>src/lib/sky/</code> as the series'
+        contract: <code>sunDirection(hour)</code> and <code>moonDirection(hour)</code>
+        on the CPU; <code>skyColors(hour)</code> returning the palette other
+        systems grade by (fog color, ambient, sun tint, intensities keyed to
+        elevation); and <code>createAtmosphere()</code> on the GPU — uniforms plus
+        a <code>skyColor(dir)</code> node, with <code>overcast</code> and
+        <code>flash</code> knobs already wired for the weather post to pull. The
+        terrain standing in these scenes is the
+        <a href="/cirque.html">real basin</a>, lit by the same sun.
+      </p>
+
+      <h2><span class="kicker">Onward</span>What this unlocks</h2>
+      <p>
+        A sun with a position and air with a color are the inputs to everything
+        else this season. Next post, the air gets <em>thickness you can see
+        across</em>: aerial perspective fading the far shore, exponential height
+        fog pooling in the valley, and the dawn mist that defines Fish Hawk's
+        opening shot — condensing in the cold hours and burning off as our
+        brand-new sun climbs. The clock keeps ticking; now the weather starts
+        listening.
+      </p>
+    </main>
+    <footer>
+      <p>Stillwater — building Fish Hawk in public, one system at a time.</p>
+    </footer>
+    <script type="module" src="/src/air.ts"></script>
+  </body>
+</html>

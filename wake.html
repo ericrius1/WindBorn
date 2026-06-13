@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>Wakes and Foam — Stillwater</title>
+    <meta
+      name="description"
+      content="An advected foam field that remembers what happened, the wake wedge derived from a moving source, and the slow-motion osprey strike — The Splash's finale."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-wake"></div>
+      <div class="hero-title">
+        <h1>Wakes and Foam</h1>
+        <p class="subtitle">
+          The series finale: the osprey dives on a lake that ripples, sprays,
+          foams, and remembers. Drag the time slider down to one-tenth and
+          watch every system this series built fire in order.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Two systems remain between us and the strike Fish Hawk's trailer will lead
+        with. The first is memory: our lake forgets a <a href="/crown.html">splash</a>
+        in seconds, but a real strike leaves a pale stain of foam that drifts and
+        stretches for half a minute — it's how you can glance at a lake and read what
+        happened ten seconds ago. The second is the signature of motion itself: the
+        V-shaped wake fan behind anything crossing water, which our
+        <a href="/coupling.html">wake events</a> hint at but we've never examined
+        honestly. Both turn out to ride the same machinery — the velocity field we've
+        been integrating since <a href="/shallows.html">part two</a> — and once
+        they're in, there is nothing left to build before the bird goes in the water.
+      </p>
+
+      <h2><span class="kicker">Step 1 · Memory</span>Foam rides the flow</h2>
+      <p>
+        Foam is entrained air — bubbles whipped into the water by violence — and it
+        has a property height can't fake: it's a <em>material</em>, not a wave. Waves
+        move energy through water that mostly stays put; foam IS stuff, and it goes
+        where the water goes. So we give every cell a fourth number (the state vector
+        is now <code>η, vx, vz, foam</code> — one vec4, no new buffers) and move it
+        with the flow each substep. The mover is a <strong>semi-Lagrangian</strong>
+        step, and it's worth knowing because it's the workhorse of all visual fluids:
+        instead of pushing my foam downstream (a scatter — racy on a GPU, as
+        <a href="/waves.html">part one</a> taught us), each cell walks <em>backward</em>
+        along its own velocity, <code>source = position − v·dt</code>, and gathers the
+        foam from where its water just was. Four bilinear taps, no races, ping-pong
+        friendly. Add exponential decay — bubbles pop — and sources: impacts and wake
+        events deposit foam through the same Gaussian impulses as everything else.
+        Paint some yourself and watch the stirring currents shear it:
+      </p>
+
+      <div data-demo="foam-paint"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · Shading the stain</span>
+        <p>
+          Foam changes the optics, not just the color. Bubbles scatter light
+          diffusely, so foam kills the two things that make water read as water:
+          the Fresnel mirror and the <a href="/skin.html">sun glint</a>. The surface
+          material fades both out where foam is dense and blends toward a flat
+          sky-lit off-white — which is why the stain reads as something <em>on</em>
+          the water rather than a white decal under it.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · The wedge</span>What a wake actually is</h2>
+      <p>
+        Now the fan. A moving body rings the water continuously — think of it as
+        dropping pebbles as fast as it travels. Each ring expands at the local wave
+        speed <code>c</code>; the body, meanwhile, is somewhere else already. If it
+        moves slower than <code>c</code>, every ring outruns it and the pattern just
+        bunches ahead. But the moment <code>v &gt; c</code>, the body escapes its own
+        rings, and the only place wavefronts can reinforce is along their common
+        tangent — a wedge trailing the body with half-angle
+        <code>sin θ = c/v</code>. Scroll the construction:
+      </p>
+
+      <div data-scrolly="kelvin-fan"></div>
+
+      <p>
+        One honest distinction before the demo. On <em>deep</em> water, dispersion
+        (every wavelength its own speed — the <a href="/ripples.html">formula from
+        season one</a>) changes the answer entirely: the envelope over all those
+        speeds locks the wedge at 19.47° no matter how fast the boat goes. That
+        universal constant is Kelvin's celebrated result, and it's why every duck and
+        every ferry on a deep lake wears the same collar. Our sim is shallow-water —
+        non-dispersive, one wave speed — so it obeys the simpler Mach-style law
+        above, wedge narrowing as speed grows. For a splash sim this is the right
+        trade (and near shore, where <code>d</code> is genuinely small, it's not even
+        a compromise — shallow-water wakes really do behave this way). The demo
+        predicts the angle from <code>asin(c/v)</code> in the readout; check it
+        against the foam trail with your own protractor eyes:
+      </p>
+
+      <div data-demo="wake-angle"></div>
+
+      <h2><span class="kicker">Step 3 · The ensemble</span>Layers of a strike</h2>
+      <p>
+        The splash you see in the hero is not one effect. It's four systems firing in
+        order on one event: the momentum impulse (<a href="/coupling.html">part
+        four</a>) digs the cavity and rings the rings; the spray pool
+        (<a href="/crown.html">part five</a>) spends the energy budget on a crown;
+        the foam channel catches the violence and remembers it; and the rejoin rain
+        stitches the spray back into the surface. Because they all subscribe to the
+        same bus event, they layer without knowing about each other — and you can
+        peel them apart. Toggle each layer off and watch the splash get poorer; the
+        difference between "a ring" and "a strike" is the ensemble:
+      </p>
+
+      <div data-demo="strike-mix"></div>
+
+      <h2><span class="kicker">Step 4 · The strike</span>Everything, slowly</h2>
+      <p>
+        And so: the hero. The <a href="/osprey.html">bird from season one</a> circles
+        on its gait blends, <a href="/poses.html">tucks</a>, falls, flares its
+        <a href="/touchgo.html">strike pose</a>, and hits a lake where the
+        <a href="/simbubble.html">window</a> has been following it the whole time.
+        The impact is one <code>disturb()</code> call. The sim digs the cavity and
+        rings outward; the crown flares with the surface rush; foam blooms and
+        drifts; the rain patters back; and as the bird flaps off the water, its wake
+        events stripe the surface behind it. At one-tenth speed you can watch the
+        causality — impulse, rebound, crown, rejoin — like frames from a high-speed
+        camera, because slow motion here isn't an effect: it's the same integrator
+        taking smaller steps.
+      </p>
+      <p>
+        And the frame budget never notices any of it. That was the series' quiet
+        thesis, so tally it at the finale: the window is 192² cells whether the lake
+        is glass or chaos; the spray pool is 4,096 slots whether zero or four
+        hundred are alive; foam is a fourth channel in a buffer we already owned;
+        the mirror readback is one fixed-size copy per frame. Every system bought
+        with a constant budget, every budget chosen on its own page. When the game
+        later runs this strike over the full valley — terrain, forest, bird, sky —
+        the splash will cost on the worst frame exactly what it costs on the
+        calmest one.
+      </p>
+
+      <h2><span class="kicker">Onward</span>What this unlocks</h2>
+      <p>
+        The Splash set out to build the game's centerpiece, and the pieces are now
+        all in the library: a shallow-water window that follows the action
+        (<code>FluidSim</code>), the seamless surface and provider swap, two-way
+        coupling for anything that floats, spray, foam, wakes. The Under series
+        takes the camera through the surface next — Snell's window, caustics, the
+        underwater half of the dive — and it will drive this exact sim from below.
+        After that, an interlude puts you in the talons: spot, dive, splash, grab,
+        breach. The water is ready. Time to go under.
+      </p>
+    </main>
+    <footer>
+      <p>Stillwater — building Fish Hawk in public, one system at a time.</p>
+    </footer>
+    <script type="module" src="/src/wake.ts"></script>
+  </body>
+</html>

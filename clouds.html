@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Cloud Layer — Stillwater</title>
+    <meta
+      name="description"
+      content="Volumetric cumulus raymarched through a noise density field: Beer–Lambert, light marching, powder edges, silver linings — drifting on the same wind field the bird rides."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-clouds"></div>
+      <div class="hero-title">
+        <h1>The Cloud Layer</h1>
+        <p class="subtitle">
+          A sky without clouds is a screensaver. This post marches rays through a
+          slab of noise and gets real cumulus back — self-shadowed, silver-lined,
+          and drifting on the exact wind field that ripples the lake below. Turn
+          the wind up and watch both answer.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        An osprey's working day is spent between two surfaces: the lake below and
+        the cloud base above. For Fish Hawk the clouds are not wallpaper — they
+        are the weather's face (next post's fronts arrive as this layer
+        thickening), the light's moderator, and an honesty check on the
+        <a href="/updrafts.html">wind field</a>: if the clouds drift one way while
+        the ripples run another, the world is lying, and players feel it before
+        they can say it. So today we build cumulus the volumetric way — by
+        marching view rays through a density field — and we wire its drift to
+        <code>wind.sample()</code>, the same function the bird's wings read.
+      </p>
+
+      <h2><span class="kicker">Step 1 · The field</span>A cloud is a density function</h2>
+      <p>
+        Stop thinking of a cloud as an object. It is a region of air where water
+        droplet density is nonzero — a scalar field <code>ρ(p)</code> — and our
+        whole job is writing that function. We confine it to a slab between
+        <code>base</code> and <code>top</code> (650 to 1500 meters here): cumulus
+        bases are flat because that is the condensation level, the altitude where
+        rising air saturates, so the field gets a hard floor and a soft dome via
+        a vertical profile term. Inside the slab, shape comes from fractal value
+        noise — the 3D cousin of the noise that built the
+        <a href="/cirque.html">terrain</a> — squashed slightly so puffs sit wider
+        than tall.
+      </p>
+      <p>
+        Two controls turn noise into weather. <strong>Coverage</strong> is a
+        threshold: density is whatever pokes above <code>1 − coverage</code>, so
+        one slider walks the sky from a few fair-weather puffs to a closed deck —
+        that is the knob the weather machine will own next post.
+        <strong>Erosion</strong> subtracts a second, finer noise, weighted toward
+        the edges, which carves the cauliflower detail without disturbing the
+        solid cores. Below is the raw field, marched and accumulated with no
+        lighting at all — white smoke, but already unmistakably cloud-shaped:
+      </p>
+
+      <div data-demo="cloud-field"></div>
+
+      <h2><span class="kicker">Step 2 · The march</span>Beer–Lambert, one step at a time</h2>
+      <p>
+        The fog post could integrate its layer <a href="/mist.html">in closed
+        form</a> because the density was a clean exponential. This field has no
+        closed form — so we do it numerically. For each pixel whose ray enters
+        the slab, take N steps. At each step, Beer–Lambert says the step
+        transmits <code>e^(−σ·ρ·Δt)</code>; whatever was absorbed,
+        <code>1 − e^(−σ·ρ·Δt)</code>, is the chance this step scattered light
+        toward you, so the step contributes that fraction of its local light,
+        weighted by how much transmittance is left in front of it. Front to back:
+      </p>
+      <pre><code>for each step:  L += T · (1 − e^(−σρΔt)) · light(p)
+                T *= e^(−σρΔt)        (stop when T ≈ 0)</code></pre>
+      <p>
+        The only open question is <code>light(p)</code> — and it is the question.
+        A cloud is lit by the sun <em>through itself</em>: bottoms are dark
+        because the light crossed the whole cloud to reach them. So at each
+        sample we run a second, shorter march toward the sun — four or five taps
+        of cheap density — giving the self-shadowing that makes a cumulus look
+        like it weighs something. Two corrections finish the look. The
+        <em>powder</em> term re-brightens thin edges (in dense media, light that
+        scattered several times still escapes near the rim; one Beer term alone
+        over-darkens it). And the phase function is two Henyey–Greenstein lobes
+        plus a third, very narrow forward spike — stand the sun behind a cloud
+        below and that spike becomes the <strong>silver lining</strong>, the rim
+        fire on the edge where the path through cloud is short and the
+        forward-scattered sun barrels through nearly undeflected.
+      </p>
+
+      <div data-demo="cloud-light"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · Sunset clouds are lit from below</span>
+        <p>
+          Drag the hour slider to evening and the deck catches fire from
+          underneath — no special case anywhere. The cloud's sun color is the
+          atmosphere's transmitted sun from <a href="/air.html">part one</a>,
+          already reddened by its long path, and at low elevations the light
+          march approaches the slab nearly horizontally, so undersides stop being
+          self-shadowed. Physics keyframes the sunset for us.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 3 · The budget</span>Sixty frames, honestly bought</h2>
+      <p>
+        Raymarching is the most expensive thing this site has done: every cloud
+        pixel costs <code>N · (one detailed density + a few cheap ones)</code>,
+        and every density is a stack of hashed noise octaves. The budget is bought
+        three ways, all declared. <em>Fewer steps, jittered:</em> 16–20 steps
+        would band visibly, so each pixel offsets its first step by a hash —
+        banding becomes grain, and grain reads as texture. <em>Cheap noise:</em>
+        value noise costs 8 hashes a sample against Perlin's 8 gradients; at
+        cloud scale the quality difference is invisible. <em>Lower internal
+        resolution:</em> the hero up top renders at 62% and lets the browser
+        stretch — clouds are soft; nobody can tell. The readouts own up to all
+        of it. Budgets are design decisions, not apologies.
+      </p>
+
+      <h2><span class="kicker">Step 4 · The drift</span>The same wind the bird rides</h2>
+      <p>
+        Finally, motion. Every frame we sample the spine wind at mid-slab
+        altitude — <code>wind.sample(0, 1075, 0, t)</code> — and advect the
+        density field's lookup offset by it. That one line is the post's thesis:
+        ripples (which read the wind at the surface), the gusts the bird will
+        lean on, and the clouds overhead all consult the same vector field, so
+        when you swing the wind direction below, the whole world agrees at
+        once. The gusts even give the layer a believable wobble, because the
+        sample point rides through the same noise the wings feel.
+      </p>
+
+      <div data-demo="cloud-wind"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · Real cumulus move surprisingly fast</span>
+        <p>
+          Fair-weather cumulus typically ride winds of 5–10 m/s at base height —
+          watch a cloud shadow cross a valley and you can clock it. Players
+          consistently underestimate this and read true-speed clouds as "too
+          fast", which is why we sample the wind where the clouds actually live
+          instead of applying a fudge factor: if it ever needs slowing down for
+          feel, that will be a declared game decision, not a hidden one.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Onward</span>What this unlocks</h2>
+      <p>
+        The sky now has furniture that moves, shades itself, and answers the
+        wind. Next post we give all of it a nervous system: a weather state
+        machine — calm, breezy, storm — that drives the wind speed, pushes this
+        layer's coverage toward overcast, greys the
+        <a href="/air.html">atmosphere</a>, whips whitecaps onto the lake, and
+        rains ten thousand tiny splashes onto the
+        <a href="/stillwater.html">disturbance bus</a>. The clouds were the
+        weather's face; now we build the weather.
+      </p>
+    </main>
+    <footer>
+      <p>Stillwater — building Fish Hawk in public, one system at a time.</p>
+    </footer>
+    <script type="module" src="/src/clouds.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Adaptive Score — Stillwater</title>
+    <meta
+      name="description"
+      content="An adaptive music engine for a quiet lake: pentatonic layers keyed to altitude, the world clock, and weather, crossfaded with equal-power math so the mix never bumps."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-score"></div>
+      <div class="hero-title">
+        <h1>The Adaptive Score</h1>
+        <p class="subtitle">
+          Five layers, three world inputs, no playlist. Slide the day, climb the
+          air, bring the weather in — the music follows the world because the
+          world is the conductor.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Everything The Ear has built so far is diegetic — sound with a cause you
+        could point at: <a href="/rush.html">airspeed</a>,
+        <a href="/watersong.html">a bus event</a>,
+        <a href="/echo.html">a wall</a>. Music is the one layer with no source
+        inside the world, which makes it the easiest thing to get wrong. Fish
+        Hawk is a quiet game; a loop that restarts every two minutes would wear
+        through it in an evening. What the game wants instead is music that
+        behaves like weather: always there, never the same, changing because
+        the world changed. So the score is not a track — it's an instrument the
+        world plays, with three hands: altitude, the
+        <a href="/stillwater.html">world clock</a>, and the weather.
+      </p>
+
+      <h2><span class="kicker">Step 1 · The contract</span>Five notes that can't collide</h2>
+      <p>
+        Adaptive layering has a hidden requirement that shapes everything: if
+        layers fade in and out <em>independently</em>, then every possible
+        combination of them will eventually sound together, so every pair must
+        be consonant by construction. The cheapest airtight guarantee is the
+        major pentatonic scale — D&nbsp;E&nbsp;F#&nbsp;A&nbsp;B for us. Five
+        notes, and the smallest interval between any two of them is a whole
+        tone: no minor seconds, no tritones, none of the intervals that grind.
+        It's why wind chimes are tuned pentatonically — any gust plays a valid
+        chord — and our score is, frankly, a very organized wind chime.
+      </p>
+      <p>
+        Try to break it below. The labeled keys are the scale; play any two and
+        watch the summed waveform — scale pairs beat slowly and settle, while
+        off-scale neighbors (try F#&nbsp;against&nbsp;G) buzz with the roughness
+        the scale exists to exclude.
+      </p>
+      <div data-demo="harmony"></div>
+
+      <h2><span class="kicker">Step 2 · The math</span>Crossfades that don't dip</h2>
+      <p>
+        Layers come and go by crossfade, and crossfades have a classic trap.
+        Loudness lives in <em>power</em> — amplitude squared — but a fader
+        moves amplitude. Crossfade two equal layers linearly and at the midpoint
+        each contributes 0.5 amplitude: the amplitudes still sum to 1, but the
+        power is 0.5²&nbsp;+&nbsp;0.5²&nbsp;=&nbsp;0.5. Half the power,
+        −3&nbsp;dB: an audible hole in the middle of every transition. The fix
+        is to fade along a curve that conserves power instead:
+        <code>gA&nbsp;=&nbsp;cos(uπ/2)</code>,
+        <code>gB&nbsp;=&nbsp;sin(uπ/2)</code>, so that
+        <code>gA²&nbsp;+&nbsp;gB²&nbsp;=&nbsp;1</code> for every blend
+        <code>u</code> — the Pythagorean identity, moonlighting as a mixing
+        law. The demo runs both laws with a live RMS meter underneath; flip to
+        linear and the dip draws itself.
+      </p>
+      <div data-demo="crossfade"></div>
+      <p>
+        Our engine has five layers, not two, so we generalize the same idea:
+        each layer computes a raw weight <code>wᵢ</code> from the world, and
+        the gains are normalized in power across the set —
+      </p>
+      <pre><code>gᵢ = √( wᵢ / max(1, Σw) )</code></pre>
+      <p>
+        Whenever the weights sum to at least 1, total power
+        <code>Σgᵢ²</code> is exactly constant no matter how the mix is
+        distributed; when everything ducks at once (a stormy midnight at zero
+        altitude), the <code>max(1,&nbsp;·)</code> lets the music genuinely get
+        quieter instead of boosting whatever is left. The cos/sin pair falls
+        out as the two-layer special case.
+      </p>
+
+      <h2><span class="kicker">Step 3 · The hands</span>Keying layers to the world</h2>
+      <p>
+        Now the musical decisions, one layer per world condition. A
+        <strong>drone</strong> — root and fifth, low and slow — holds weight 1
+        always; it's the lake's pedal point and the floor the normalization
+        stands on. <strong>Meadow</strong>, a warm mid-register pad gliding
+        between four chords, owns daytime at low altitude — hunting height.
+        <strong>Aloft</strong> takes over as altitude climbs through the
+        18–65&nbsp;m band: sparse high bells on the pentatonic set, scheduled a
+        beat ahead on a loose grid, thinner and brighter exactly when the
+        ground falls away. <strong>Night</strong> crossfades in through the
+        hour window the daylight smoothstep leaves behind, darker B-minor
+        colors moving at half speed. And <strong>storm</strong> rides the
+        weather input — a pulsing low fifth that pushes everything else down
+        through its weight alone (each layer's window multiplies in
+        <code>1−k·storm</code>), no special ducking logic anywhere.
+      </p>
+      <p>
+        Every window is a smoothstep, never a threshold, for the same reason
+        the flight model smooths its commands: the inputs are continuous, so
+        the music must be too. Altitude in particular wobbles constantly — a
+        bird working a thermal crosses 30&nbsp;m a dozen times a minute, and a
+        hard-edged switch there would turn the score into a metronome of its
+        own indecision. The 18–65&nbsp;m band is wide on purpose: it takes a
+        <em>deliberate</em> climb to bring the bells in fully, which quietly
+        teaches the player that altitude is a place, not a number.
+      </p>
+      <p>
+        The map below plots the resulting gains across a full 24-hour day —
+        move the altitude and weather sliders and watch the day reshape. This
+        is the entire score engine as one picture: smooth windows in, equal
+        power out.
+      </p>
+      <div data-demo="layermap"></div>
+      <p>
+        The bells deserve one implementation note, because they're the only
+        <em>scheduled</em> notes in the engine. Web audio runs on two clocks:
+        the render loop's, which stutters whenever the tab breathes, and the
+        audio context's, which is sample-accurate. Notes must be placed on the
+        second using the first — the standard lookahead pattern. Each frame,
+        while the aloft layer is audible, the engine schedules any bell whose
+        start time falls within the next 400&nbsp;ms, on a loose grid of 0.7
+        to 2 seconds with a coin flip per slot. The jitter is deliberate: a
+        strict grid reads as a sequencer, and this layer is supposed to read
+        as wind chimes — caused, not composed.
+      </p>
+      <aside class="note">
+        <span class="note-label">Aside · Chords that glide</span>
+        <p>
+          The pads never retrigger. Each pad voice is a pair of detuned
+          triangle oscillators that simply <em>glide</em> to the next chord's
+          frequency along an exponential approach — portamento, the way a choir
+          slides between chords without consonants. It costs nothing (the
+          oscillators run anyway), it can never click, and it makes the harmony
+          feel continuous rather than sequenced. The chord clock ticks every
+          nine seconds; nobody is meant to notice.
+        </p>
+      </aside>
+
+      <p>
+        Listen to the hero for a full lap of its 96-second day with the storm
+        slider at zero, then again at one. Same five layers, same five notes —
+        but dawn at altitude sounds like glass and bells, and a storm at dusk
+        sounds like held breath. That's the adaptive bargain: we don't write
+        music for moments, we write a space of music and let the world walk
+        through it. Every system this season has now been built —
+        <a href="/rush.html">wind</a>, <a href="/watersong.html">water</a>,
+        <a href="/echo.html">voice and echo</a>, score — each mountable with
+        one call and each driven by spine state. One post remains, and it's an
+        exam: turn the screen off and fly the lake on sound alone.
+      </p>
+    </main>
+    <footer>
+      <p><a href="https://github.com/ericrius1/stillwater">Source on GitHub</a></p>
+    </footer>
+    <script type="module" src="/src/score.ts"></script>
+  </body>
+</html>

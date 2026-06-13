@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>Two-way Coupling — Stillwater</title>
+    <meta
+      name="description"
+      content="Closing the loop between bodies and water: disturbance events become momentum in the velocity field, an async readback mirrors the surface to the CPU, and Archimedes floats whatever lands."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-coupling"></div>
+      <div class="hero-title">
+        <h1>Two-way Coupling</h1>
+        <p class="subtitle">
+          Click the water and watch the floats answer: the splash pushes them,
+          the waves carry them, and everything they do pushes back. From today,
+          the water and the world have a two-way conversation.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        So far our water listens but doesn't speak. The
+        <a href="/simbubble.html">sim bubble</a> hears every event on the disturbance
+        bus and ripples obligingly — but a float sitting next to a splash just bobs in
+        place, riding the height like a sticker. Real water <em>grabs</em> things. A
+        wake shoves a drifting feather; a splash scatters everything around it; and
+        when Fish Hawk's osprey belly-lands a catch, the lake has to push back hard
+        enough to matter (in <a href="/touchgo.html">Touch and Go</a> we faked that
+        with a hand-tuned spring — today the spring gets replaced by physics). This
+        post closes the loop in both directions: events become momentum
+        <em>in</em> the velocity field, and the surface state flows back <em>out</em>
+        to drive buoyancy and drag on floating bodies.
+      </p>
+
+      <h2><span class="kicker">Step 1 · Momentum in</span>What an impact actually is</h2>
+      <p>
+        The shallow-water state gives us two things to poke: the surface
+        <code>η</code> and the velocity field <code>v</code>. The lazy injection —
+        subtract a Gaussian dent from <code>η</code> and let it relax — makes
+        passable rings, but compare it side by side with reality and something's
+        missing: the <em>rebound</em>. A body hitting water transfers momentum; the
+        displaced water rushes outward and the cavity collapses back with a jet. So
+        our impulse writes both channels: a modest dent in <code>η</code>
+        (the displaced volume) plus an outward radial kick in <code>v</code>, each
+        weighted by a Gaussian footprint and scaled by <code>√energy</code> — kinetic
+        energy goes like <code>v²</code>, so the velocity we inject goes like the
+        square root of the event's energy budget. Directional events (a wake, a
+        wingtip skim) additionally inject the disturber's own velocity, which is what
+        will make wakes trail <em>behind</em> movers in <a href="/wake.html">part
+        six</a>. Flip between the two modes and watch the difference:
+      </p>
+
+      <div data-demo="impulse-modes"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · One bus, many listeners</span>
+        <p>
+          Nothing in the game ever calls the sim directly. An impact calls
+          <code>disturb({kind, x, z, energy, radius})</code> on the spine's bus —
+          the same call <a href="/touchgo.html">the bird's feet</a> have been making
+          since season one — and the sim is just one subscriber that converts kinds
+          into impulse recipes. The expanding analytic rings from
+          <a href="/stillwater.html">Glass Dawn</a> subscribe to the identical
+          events, which is why nothing needed rewriting when the real physics
+          arrived: we swapped a listener, not a protocol. The splash synthesizer in
+          the audio series will be subscriber number three.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · State out</span>The mirror</h2>
+      <p>
+        Direction two is harder for an annoying architectural reason: the water lives
+        on the GPU, and the bodies — gameplay, AI, audio — live on the CPU.
+        <code>waterHeightAt</code> must return a number <em>now</em>, synchronously;
+        the GPU answers questions by mail. Stalling the pipeline to ask
+        (a synchronous readback) can cost more than the entire frame. The compromise
+        is a <strong>mirror</strong>: every frame we kick off an asynchronous copy of
+        the state buffer; it arrives a frame or two later and becomes the CPU's
+        picture of the surface. Queries bilinearly sample the mirror — fast, allocation
+        free, and slightly stale.
+      </p>
+      <p>
+        Is stale acceptable? Quantify it: at two frames behind (33 ms), a wave front
+        moving at the capped 3.8 m/s has advanced 13 cm. The bodies that read the
+        mirror are floats with inertia — a 13 cm phase error in the force that pushes a
+        relaxing log is invisible. (It would <em>not</em> be invisible for rendering,
+        which is why the renderer never touches the mirror — it samples the live
+        buffer in the vertex shader.) The probe below shows the mirror's honesty: the
+        beads ride CPU numbers, the water under them is the GPU's picture, and the
+        readout counts the staleness in frames:
+      </p>
+
+      <div data-demo="mirror-probe"></div>
+
+      <h2><span class="kicker">Step 3 · Archimedes</span>Buoyancy as a spring you don't tune</h2>
+      <p>
+        With heights flowing back, floating is one theorem old enough to have a bath
+        story. A body displaces water; the water pushes back with the weight of what
+        was displaced: <code>F = ρ·g·V</code>. For a sphere of radius <code>R</code>
+        with its bottom a depth <code>e</code> under the surface, the submerged cap
+        has volume <code>V(e) = π·e²·(3R − e)/3</code>, so the force is zero when dry,
+        the full displaced sphere when buried, and smoothly nonlinear in between.
+        Scroll the geometry:
+      </p>
+
+      <div data-scrolly="buoyancy"></div>
+
+      <p>
+        The beautiful part: equilibrium, bobbing frequency, and splash response all
+        fall out with <em>no tuning constants</em>. A body of relative density 0.42
+        floats 42% submerged because that's where the cap volume balances its weight.
+        Push it under and the surplus shoves it up; the restoring force makes it a
+        natural oscillator, damped by drag. Drag is the second half of the story —
+        and the reason the mirror also carries the <em>velocity</em> field. Drag
+        doesn't pull a body toward rest; it pulls it toward
+        <strong>the water's own velocity</strong>, <code>F ∝ (v_water − v_body)</code>.
+        That single term is what lets waves carry things:
+      </p>
+
+      <div data-demo="float-dunk"></div>
+
+      <h2><span class="kicker">Step 4 · Full circle</span>Bodies that write and read</h2>
+      <p>
+        Now run both directions at once. A tugged float announces "wake" events as it
+        moves (momentum in, energy scaled by <code>v²</code>); the sim integrates
+        them into a trailing wave pattern; free-floating bodies read heights and
+        velocities back from the mirror and get carried, shoved, and rocked by the
+        wake of a thing they never touched. Two floats, one lake between them — and
+        every arrow in the diagram is a system we built on its own page:
+      </p>
+
+      <div data-demo="wake-circle"></div>
+
+      <h2><span class="kicker">Onward</span>What this unlocks</h2>
+      <p>
+        The loop is closed: bus → sim → surface → mirror → bodies → bus. This is the
+        machine the game's centerpiece runs on — when the osprey strikes, the impact
+        event, the rebound, the bobbing recovery, and the fish's escape rings are all
+        this page's physics. But watch any real impact and the water doesn't stay a
+        surface: it leaves it. Droplets, sheets, the white crown that gives a splash
+        its silhouette. The height field can't represent water in the air — so next
+        post we spend the impact's energy budget on a few thousand ballistic
+        particles, born from the surface velocity field and rejoining the sim as
+        rain. The splash finally gets its crown.
+      </p>
+    </main>
+    <footer>
+      <p>Stillwater — building Fish Hawk in public, one system at a time.</p>
+    </footer>
+    <script type="module" src="/src/coupling.ts"></script>
+  </body>
+</html>

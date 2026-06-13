@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>Light, Bent — Stillwater</title>
+    <meta
+      name="description"
+      content="Caustics derived as the Jacobian of the refraction map — no textures, no sim — plus depth-graded fog, raymarched god rays, and bubble columns rising off the disturbance bus."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-caustics"></div>
+      <div class="hero-title">
+        <h1>Light, Bent</h1>
+        <p class="subtitle">
+          The dancing light on a lakebed isn't painted anywhere — it's a census of
+          where the waves steered the sun. We derive it from the wave table we
+          already have, then march it through the water as god rays. Click the
+          water to strike it.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        The underwater second of Fish Hawk's dive has a ceiling now —
+        <a href="/snell.html">Snell's window</a> and its mirror — but the space under
+        it is still a void with a floor. Real lake water at ten in the morning is
+        <em>busy</em>: ropes of light writhing across the sand, shafts hanging in the
+        murk, the distance dissolving into teal, bubbles ticking upward after every
+        disturbance. None of that is decoration. The caustics tell you the sun is
+        out and the surface is moving; the fog tells you how far you can hunt; the
+        bubbles tell you something just hit the water and where. This post builds
+        all four, and the satisfying part is that the headline act — the caustics —
+        needs no new simulation at all. It's a second derivative of the
+        <a href="/ripples.html">wave table</a> we've been carrying since part one of
+        the Mirror series.
+      </p>
+
+      <h2><span class="kicker">Step 1 · The derivation</span>Caustics are a map's Jacobian</h2>
+      <p>
+        Start with parallel sunlight hitting a rippled surface. Each point of the
+        surface refracts its ray by Snell's law — toward the local normal — so a
+        wave trough, curved like a magnifying glass, converges its rays, and a crest
+        spreads them. For the gentle slopes of our lake we can linearize the bend:
+        a facet tilted by slope <code>∇h</code> deflects the refracted ray from
+        vertical by about <code>(1 − 1/n)·∇h</code>. Let that ray fall <code>d</code>
+        meters to the bed and it lands displaced by
+      </p>
+      <pre><code>P(x) = x + β·∇h(x),    β = d·(1 − 1/n) ≈ 0.25·d</code></pre>
+      <p>
+        — a <em>map</em> from entry points to landing points. Light entered the
+        surface uniformly, so the brightness at a landing point is just how much the
+        map compressed area around it — one over the determinant of its Jacobian:
+      </p>
+      <pre><code>I ∝ 1 / |det(I + β·H)|,    H = the Hessian of h</code></pre>
+      <p>
+        Where neighboring rays converge, <code>det → 0</code> and the floor flares:
+        those are the filaments. Here is the gift: our surface is a sum of sines, so
+        its second derivatives are exact, in closed form, three multiplies per wave.
+        No caustic texture, no photon scatter, no render target — the bed shader
+        evaluates the same five-wave table the surface displaces with, twice
+        differentiated, and divides. Watch it happen one ray at a time:
+      </p>
+
+      <div data-scrolly="focus"></div>
+
+      <p>
+        The live sheet below exposes the two knobs the derivation predicts. Depth is
+        the lever arm β — push the bed deeper and the same slopes displace rays
+        further, so the pattern sharpens, then folds over itself where the map turns
+        inside out. Choppiness tilts wave energy into the short capillary waves,
+        whose curvature (amplitude times <code>k²</code>) dominates the Hessian even
+        though their height is millimeters:
+      </p>
+
+      <div data-demo="caustic-sheet"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · Why pool caustics look like cells</span>
+        <p>
+          The filament network you see on a swimming-pool floor is the fold set of
+          this exact map — mathematicians call the bright lines caustics because
+          they're where the determinant vanishes and the intensity formally blows up
+          (in practice, diffraction and the sun's half-degree width cap the spike;
+          our shader caps <code>|det|</code> at a small epsilon for the same effect).
+          The cell-like look comes from the map folding along closed curves: each
+          trough-lens draws a bright loop around its own patch of bed.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · The medium</span>Fog, and light with a direction</h2>
+      <p>
+        Caustics put light <em>on surfaces</em>; the water between surfaces needs its
+        own treatment. Distance fog underwater is
+        <a href="/depths.html">Beer–Lambert</a> wearing a different hat: along a view
+        ray of length <code>s</code>, the object's light survives as
+        <code>e^(−σ·s)</code> and the gap fills with the medium's glow — the teal
+        that scattering hands back. Every underwater material here ends with that
+        one-line mix, with σ on a slider (turbidity: gin-clear to glacial flour).
+      </p>
+      <p>
+        God rays are the same caustic number, marched. A shaft of underwater light is
+        bright where the sun ray passing through it entered the surface at a
+        focusing point — so the brightness of any point in the volume is the caustic
+        intensity at its sun-entry point, dimmed by the sun's path down and the view
+        path back. A full-screen pass marches each view ray in sixteen jittered
+        steps, evaluates the (three-wave, cheaper) caustic at each sample's entry
+        point, applies the two Beer–Lambert tolls, and adds. The shafts are caustics
+        extruded along the sun direction — which is why they visibly hang from the
+        bright lanes on the surface and sway with them:
+      </p>
+
+      <div data-demo="god-rays"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · One sun, three readings</span>
+        <p>
+          Hour, sun direction, and sun color all come from the same dawn-sky rig the
+          <a href="/stillwater.html">finale scene</a> keyed to the world clock. Drag
+          the hour slider and three things move in lockstep: the shafts lean (entry
+          points slide with the sun's azimuth), the caustic lanes migrate across the
+          bed, and the whole palette warms — because all three read the one sun.
+          That agreement is the spine doing its job; no demo here owns a private sun.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 3 · The exhale</span>Bubble columns</h2>
+      <p>
+        When something punches through the surface it drags air down with it, and
+        the lake hands the air back as a column of bubbles over the next couple of
+        seconds. We don't simulate the entrainment — that's the fluid series'
+        territory — but the bus tells us everything we need:
+        the <a href="/touchgo.html">disturbance events</a> that already make rings
+        carry a position and an energy, and the plume subscribes like any other
+        listener. A strike spawns a source that trickles out bubbles over ~two
+        seconds (that's what makes a <em>column</em> instead of a puff), each one an
+        instanced sphere with honest small-bubble physics: terminal rise speed in
+        the tens of centimeters per second (drag balances buoyancy in milliseconds
+        at this size, so we never integrate the transient), a wobble from the
+        vortices it sheds, slight growth on the way up as the water pressure thins
+        (Boyle's law — about 10% from two meters), and a pop at the surface. Raindrop
+        events are too weak to make a column; a talon strike makes a thick one. The
+        bus decides — try all three:
+      </p>
+
+      <div data-demo="bubble-columns"></div>
+
+      <h2><span class="kicker">Onward</span>What this unlocks</h2>
+      <p>
+        The underwater world is now a lit, breathing place: a ceiling that knows
+        the sky, caustics that prove the sun, fog that sets the hunting distance,
+        shafts that give light a direction, and bubbles that report every impact.
+        Every piece runs off systems the site already had — the wave table, the
+        Beer–Lambert toll, the dawn sun, the disturbance bus — which is the whole
+        Stillwater bet: build each thing once, honestly, and the later posts get to
+        spend their budget on assembly. And assembly is exactly what's left. Next
+        post, the real osprey tucks, hits the water at fifteen meters a second,
+        grabs a fish under this light, and breaches through everything we just
+        built. The dive, end to end.
+      </p>
+    </main>
+    <footer>
+      <p>Stillwater — building Fish Hawk in public, one system at a time.</p>
+    </footer>
+    <script type="module" src="/src/caustics.ts"></script>
+  </body>
+</html>

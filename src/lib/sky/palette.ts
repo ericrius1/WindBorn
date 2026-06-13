@@ -21,10 +21,19 @@ export const MOON_DECLINATION_DEG = -3.0;
 const sinLat = Math.sin(LATITUDE_DEG * DEG);
 const cosLat = Math.cos(LATITUDE_DEG * DEG);
 
+// Direction of the north celestial pole in world space (+x east, +y up,
+// -z north): elevation equals the latitude, due north. Everything in the sky
+// wheels around this axis — the stars module spins its dome about it.
+export const CELESTIAL_POLE = /* @__PURE__ */ new Vector3(
+  0,
+  Math.sin(LATITUDE_DEG * DEG),
+  -Math.cos(LATITUDE_DEG * DEG),
+);
+
 // Direction TOWARD a body with declination `decl` at hour angle H(hour),
 // in world space: +x east, +y up, -z north. Derived by expressing the body
 // in equatorial coordinates and rotating the frame down by the latitude.
-function celestialDirection(hour: number, declRad: number, target: Vector3): Vector3 {
+export function celestialDirection(hour: number, declRad: number, target: Vector3): Vector3 {
   const H = (hour - 12) * 15 * DEG; // hour angle: 0 at solar noon, +west
   const sinD = Math.sin(declRad);
   const cosD = Math.cos(declRad);
@@ -46,12 +55,31 @@ export function moonDirection(hour: number, target = new Vector3()): Vector3 {
   return celestialDirection(hour + 12, MOON_DECLINATION_DEG * DEG, target);
 }
 
-// Sun elevation in degrees above the horizon (negative = below).
-export function sunElevationDeg(hour: number): number {
+/**
+ * Moon direction with an explicit lag behind the sun, in hours. Lag 12 is the
+ * site default (full moon, opposite the sun); other lags exist so the night
+ * essay can demonstrate that phase is nothing but sun–moon geometry.
+ */
+export function moonDirectionLagged(hour: number, lagHours: number, target = new Vector3()): Vector3 {
+  return celestialDirection(hour + lagHours, MOON_DECLINATION_DEG * DEG, target);
+}
+
+// Elevation of a body in degrees above the horizon (negative = below).
+function elevationDeg(hour: number, declDeg: number): number {
   const H = (hour - 12) * 15 * DEG;
-  const d = DECLINATION_DEG * DEG;
+  const d = declDeg * DEG;
   const s = sinLat * Math.sin(d) + cosLat * Math.cos(d) * Math.cos(H);
   return Math.asin(Math.max(-1, Math.min(1, s))) / DEG;
+}
+
+// Sun elevation in degrees above the horizon (negative = below).
+export function sunElevationDeg(hour: number): number {
+  return elevationDeg(hour, DECLINATION_DEG);
+}
+
+// Moon elevation in degrees (site default: full moon, 12 h behind the sun).
+export function moonElevationDeg(hour: number, lagHours = 12): number {
+  return elevationDeg(hour + lagHours, MOON_DECLINATION_DEG);
 }
 
 // ---- the palette -------------------------------------------------------------

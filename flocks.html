@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>Other Wings — Stillwater</title>
+    <meta
+      name="description"
+      content="Three more birds, three different problems: swallows whose skim runs write ripple lines on the lake, geese whose V formation is derived from wingtip vortices, and a patrolling eagle — the game's future fish-thief."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-flocks"></div>
+      <div class="hero-title">
+        <h1>Other Wings</h1>
+        <p class="subtitle">
+          The evening airspace: swallows working the surface, a skein of
+          geese in transit overhead, and an eagle climbing its invisible
+          staircase of thermals. Three species, three draw calls.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        A lake with one bird on it is a tech demo. The osprey we
+        <a href="/osprey.html">lofted</a>, <a href="/flap.html">flapped</a>,
+        and <a href="/joy.html">taught to fly</a> needs an airspace that was
+        busy before the player arrived and stays busy when they leave —
+        that's what makes a world read as <em>inhabited</em> rather than
+        instanced. But the other wings aren't scenery either. Each one earns
+        a gameplay job: the swallows demonstrate surface-reading (their skim
+        runs write the same bus-driven ripples the player learns to hunt by),
+        the geese are the long-distance clock of the valley (a V crossing at
+        altitude is dusk's punctuation mark), and the eagle is a promise of
+        future trouble — in the finished game it will occasionally try to
+        take your fish on the carry home. This post builds all three: meshes
+        first, then a controller per species, because the interesting thing
+        about these birds is that they need three <em>different kinds</em> of
+        intelligence.
+      </p>
+      <p>
+        The meshes reuse the direct-loft kit from
+        <a href="/osprey.html">the osprey build</a> — body as elliptical
+        rings on a spine curve, wings as tapered two-layer vanes (dark above,
+        pale below, because a bird overhead and a bird below you are
+        different colors), everything faceted and merged into one geometry
+        per species. No skeletons this time: the flap is a vertex-stage sine
+        that lifts everything outboard of a body hinge, phase-hashed per
+        instance, so an entire flock beats out of step in a single
+        instanced draw call. A whole evening of birds costs three.
+      </p>
+
+      <h2><span class="kicker">Step 1 · The swallows</span>Skim runs on the bus</h2>
+      <p>
+        Swallows are the lake's other surface-readers — they hawk insects in
+        long flat passes centimeters off the water. Each bird runs a
+        four-state machine: <strong>wander</strong> (banked meandering in the
+        3–10 m band, on a timer), <strong>dive</strong> (commit to a run: an
+        entry point and a heading), <strong>skim</strong> (the heart of it),
+        and <strong>climb</strong> back out. During the skim the bird holds a
+        stiff spring on its altitude against the <em>live</em> surface —
+        <code>waterHeightAt(x, z, t)</code> plus a 7 cm clearance — so it
+        rides the ambient waves it's flying over rather than a flat plane.
+        And every 1.7 m of travel it pays the toll that makes the whole
+        system sing:
+      </p>
+      <pre><code>disturb({ kind: "skim", x, z, energy: 0.006, radius: 0.05, vx, vz })</code></pre>
+      <p>
+        A wingtip kiss is a tiny event — about a hundredth of a fish rise —
+        but the surface renders each one as a small ring, and a completed run
+        reads as a dotted line of fading rings across the lake, precisely the
+        signature real swallows leave on calm evening water. Note what we did
+        <em>not</em> write: any code connecting swallows to ripples. The bird
+        announces; <a href="/touchgo.html">the bus</a> delivers; the water
+        decides what a skim looks like. That decoupling is why one little
+        event type keeps paying for itself series after series.
+      </p>
+      <div data-demo="skim"></div>
+
+      <h2><span class="kicker">Step 2 · The geese</span>Deriving the V</h2>
+      <p>
+        Why do geese fly in a V? Not togetherness — economics. A wing makes
+        lift by throwing air down, and that downwash has to curl back up
+        somewhere: past each wingtip the air rolls into a trailing vortex,
+        downwash <em>between</em> the tips, upwash <em>outboard</em> of them.
+        For a wing of span <code>b</code> with a roughly elliptical lift
+        distribution, the two trailing vortices behave as if separated by
+        <code>πb/4</code> — narrower than the wingspan itself — so the
+        rising air starts at <code>πb/8</code> from the leader's centerline,
+        roughly 60 cm for a goose. Free lift, if you can park a wing in it.
+      </p>
+      <p>
+        So a following goose wants its <em>inner wingtip</em> riding just
+        outboard of the bird ahead's vortex core. Convert that to a slot for
+        the body: <code>offset = πb/8 + b/2</code> plus a little slack —
+        about 1.5 m to the side, a couple of meters behind, a hair high
+        (the upwash is rising air, after all). Now the punchline: that's the
+        <em>entire</em> formation logic. Every goose runs one rule — chase
+        the slot behind your same-side predecessor with a critically damped
+        spring — and the V assembles itself, leg by leg, each bird's choice
+        of side propagating down the line. The V's half-angle isn't authored
+        anywhere; it's <code>atan(offset / gap)</code>, emergent from
+        aerodynamics. Widen the wingspan slider below and the V obediently
+        opens. Then hit the toggle that turns off vortex-seeking: same birds,
+        same following instinct, zero physics — and you get a dumb queue.
+        The V <em>is</em> the aerodynamics, visible from the ground.
+      </p>
+      <div data-demo="vee"></div>
+      <aside class="note">
+        <span class="note-label">Aside · Measured, not just modeled</span>
+        <p>
+          This isn't only theory. Heart-rate loggers on pelicans flying in
+          formation showed 11–14% lower heart rates than solo flight, and a
+          study that GPS-tracked a trained flock of northern bald ibis found
+          the birds really do hold station in the predicted upwash zone —
+          and even phase their wingbeats to surf the rising part of the
+          wake. Lead birds rotate because the point position gets no
+          discount, which is why long skeins reshuffle in flight.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 3 · The eagle</span>A patrol you'll learn to watch</h2>
+      <p>
+        The eagle needs the opposite of a state machine per second — it needs
+        a <em>routine</em>. Real soaring eagles structure their day as
+        climb-glide cycles: circle inside a thermal to bank altitude, then
+        spend it on a straight glide to the next one. Our patrol is exactly
+        that loop: in <strong>circle</strong> mode the bird carves a fixed-radius
+        turn while climbing at 0.7 m/s, the whole gyre drifting downwind
+        (thermals are columns in moving air — the same
+        <a href="/updrafts.html">wind field the player rides</a> pushes the
+        eagle's elevator sideways); topping out near 110 m it picks a new
+        point in its territory and <strong>glides</strong>, trading height
+        for speed, until it arrives low and starts the next climb. One detail
+        is worth stealing for any circling bird: the bank angle isn't
+        animated, it's the coordinated-turn equation <code>tan φ = v² /
+        (g·r)</code> — physics posing the mesh.
+      </p>
+      <p>
+        Why an eagle at all? Kleptoparasitism — and the readout below the
+        demo is the game design hiding in plain sight. The patrol exposes its
+        position every frame, and in the Fish Hawk season the carry-home leg
+        after a catch will check it: an eagle high in a thermal while you're
+        low with a fish is a problem you can see coming <em>if you've learned
+        to glance up</em>. Same design law as the glints and the rings: no UI,
+        just a world whose state is legible to a player paying attention.
+      </p>
+      <div data-demo="eagle"></div>
+      <aside class="note">
+        <span class="note-label">Aside · The thief in the field guide</span>
+        <p>
+          Bald eagles really do specialize in robbing ospreys — Benjamin
+          Franklin famously grumbled that the eagle "does not get his living
+          honestly" because it watches "the labour of the fishing hawk" and
+          takes the fish. The maneuver is usually a high-speed stoop at the
+          laden, slower osprey, which drops the catch rather than risk the
+          talons. Ospreys respond exactly the way our future game loop will
+          reward: climb immediately after a catch, and route home along the
+          shore instead of across open water.
+        </p>
+      </aside>
+
+      <p>
+        The airspace is now three deep: swallows on the film, geese in the
+        transit layer, the eagle stacking thermals above everyone. Add the
+        fish below from <a href="/fish.html">part one</a> and the
+        <a href="/hatch.html">hatch</a> between them and the vertical food
+        chain is nearly complete — but the shore is still bare rock and
+        beach gravel. A lake without reeds has no edge softness, no place
+        for the wind to be visible on land, and frankly nowhere for all
+        these insects to have come from. Next we plant the waterline:
+        instanced grass and cattails by the tens of thousands, swaying to
+        the one wind field, placed by the same altitude-and-slope rules that
+        planted <a href="/forest.html">the forest</a>. That's
+        <a href="/shore.html">The Shore</a>.
+      </p>
+    </main>
+    <footer>
+      <p><a href="https://github.com/ericrius1/stillwater">Source on GitHub</a></p>
+    </footer>
+    <script type="module" src="/src/flocks.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>Blind Flight — Stillwater</title>
+    <meta
+      name="description"
+      content="The Ear's finale: every synthesizer from the season running together — wind, water, call, echo, score — and the screen faded to black. Fly the lake on sound alone."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-blind"></div>
+      <div class="hero-title">
+        <h1>Blind Flight</h1>
+        <p class="subtitle">
+          The exam at the end of the season. Click in, put headphones on, drag
+          the sight slider to zero, and fly. Everything you need to know is in
+          your ears — that's not a boast, it's this post's claim to defend.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Four posts built four instruments: <a href="/rush.html">wind from
+        airspeed</a>, <a href="/watersong.html">water from the bus</a>,
+        <a href="/echo.html">a voice and its echoes</a>, and
+        <a href="/score.html">a score the world conducts</a>. The honest test of
+        a soundscape isn't whether it's pleasant — it's whether it's
+        <em>informative</em>. Game audio at its best is a second display, and
+        there's a brutal way to measure that: turn the first display off. If
+        the player can still fly — hold a speed, find the water, avoid the
+        walls — then every synthesizer is carrying real signal. If they can't,
+        the season was decoration. Hence the hero above: the complete
+        soundscape over the <a href="/cirque.html">real basin</a>, with a sight
+        slider standing between you and the dark.
+      </p>
+
+      <h2><span class="kicker">Step 1 · Assembly</span>Four mounts, one loop</h2>
+      <p>
+        First, the engineering claim from the <a href="/rush.html">start of the
+        season</a>, now cashed in: the entire soundscape mounts with one call
+        per system.
+      </p>
+      <pre><code>const wind  = attachWindAudio();
+const water = attachWaterAudio();
+const calls = attachCallAudio();
+const score = attachScoreAudio();
+// per frame:  wind.update(dt); water.update(dt); …</code></pre>
+      <p>
+        Nothing else. No scene wiring, no event plumbing — each mount reads the
+        spine singletons everything already publishes:
+        <code>flightState</code> for airspeed, wingbeat, and position; the
+        disturbance bus for impacts; the world clock and the wind field for the
+        score's mood. The demo below is the proof by absurdity: it runs the
+        four mounts against a <em>headless</em> flight model — a
+        <code>FlightBody</code> stepping its physics with no renderer at all —
+        and the soundscape neither knows nor cares that nobody drew the bird.
+        Mute stems one at a time and listen to what each carries; the meters
+        show every layer breathing with the dive cycle.
+      </p>
+      <div data-demo="stems"></div>
+
+      <h2><span class="kicker">Step 2 · Localization</span>What two ears can know</h2>
+      <p>
+        Flying blind leans hard on knowing <em>where</em> a sound is, so it's
+        worth being precise about what our spatialization gives you. Every bus
+        event gets three distance-and-direction cues: a gain that falls as
+        <code>1/(1+(d/18)²)</code>, a lowpass that dulls far sounds the way air
+        absorption really does, and a stereo pan from the bearing's left-right
+        component. That's intensity panning — the cheapest of the
+        localization cues real ears use — and the game it supports is below:
+        a fish rises somewhere in the dark; click where you heard it. With
+        headphones most people land within a few meters laterally on the first
+        try.
+      </p>
+      <p>
+        You'll also discover the model's honest blind spots, because your own
+        auditory system has them too: front-back confusion (a pan of zero is
+        ambiguous between ahead and behind) and no elevation cue at all. Real
+        ears solve those with spectral filtering by the outer ear — what
+        head-related transfer functions model — and with head motion. We get
+        the motion fix for free in flight: bank ten degrees and the ambiguity
+        resolves, which is exactly what owls and pilots both do. The HRTF
+        upgrade is a clean future slot behind the same bus interface; noted
+        and deferred.
+      </p>
+      <div data-demo="earcheck"></div>
+      <aside class="note">
+        <span class="note-label">Aside · Hunting by ear, for real</span>
+        <p>
+          Sound-only hunting isn't a gimmick — it's a working sensory strategy.
+          Barn owls strike mice in total darkness, localizing by microsecond
+          arrival differences between asymmetrically placed ears. Ospreys are
+          eye hunters, but anglers will tell you the ear matters on still
+          water: you hear a rise behind you before you ever see the rings. Our
+          fish telegraph themselves on the bus with a 60&nbsp;Hz-bloop rise —
+          by the time Fish Hawk's hunt ships, that sound will be a gameplay
+          channel, not garnish.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 3 · The protocol</span>Reading the dark</h2>
+      <p>
+        Back to the hero, sight at zero. Here is the full instrument panel
+        your ears are getting, one signal per system this season built:
+      </p>
+      <p>
+        <strong>Speed</strong> is the wind's brightness and loudness — hold the
+        hiss steady and you're trimmed; hear the scream resonators open and
+        you're past 16&nbsp;m/s and committed. <strong>Effort</strong> is the
+        whump rate, the wingbeat metronome. <strong>Stall</strong> announces
+        itself as the 10&nbsp;Hz buffet flutter — ease the nose down until it
+        stops. <strong>Water</strong> is double-keyed: the lapping bed swells
+        as you descend toward the surface, and touching down speaks for itself
+        — your own splash arrives on the same bus as everything else's.
+        <strong>Walls</strong> are the call: press C, count the echoes — a
+        short answer means rock coming, a long symmetric chord means open
+        water. <strong>Altitude</strong> is the score's aloft layer: bells
+        thin out as you sink through the 65–18&nbsp;m band. Even
+        <strong>weather</strong> reports in, through the storm layer's pulse.
+        None of these were designed as accessibility features; they're just
+        what falls out when every sound is derived from state instead of
+        triggered by script.
+      </p>
+      <p>
+        If you want the full exam, here's the training flight we use. First,
+        <em>hold a speed</em>: pick the hiss pitch of a comfortable glide and
+        keep it constant for thirty seconds — pitch creeping up means the nose
+        is dropping. Second, <em>find the water</em>: descend until the
+        lapping bed swells, then flare by ear and listen for the skim — a
+        light slap, no bloop — that says you kissed the surface instead of
+        burying yourself in it. Third, <em>find a wall</em>: call, turn toward
+        the shortest echo, and call again every few seconds; the delay
+        shrinking from two seconds toward a half is the rock face growing in
+        the dark, and the moment to break off is when the first tap drops
+        under about 0.4&nbsp;s — 70&nbsp;m of clearance, four wingbeats. It
+        takes most people two or three attempts. The fact that it's possible
+        at all is the season's real test result.
+      </p>
+      <p>
+        That closes The Ear — and with it, the season. The valley now has a
+        sky that keeps time, an ecosystem that telegraphs itself, and a
+        soundscape synthesized from the same spine state as everything else:
+        nothing recorded, nothing looped, nothing that can drift out of sync
+        with the world, because it <em>is</em> the world, rendered as
+        pressure. What it unlocks is the third playable milestone — a full day
+        at the lake, dawn mist to moonrise, with the hatch overhead and all of
+        this in your ears — and beyond that, the final season, where polish
+        and play turn these systems into Fish Hawk itself. The game will open
+        on a black screen, one beat before the first light. Now you know that
+        even there, the lake is already speaking.
+      </p>
+    </main>
+    <footer>
+      <p><a href="https://github.com/ericrius1/stillwater">Source on GitHub</a></p>
+    </footer>
+    <script type="module" src="/src/blind.ts"></script>
+  </body>
+</html>

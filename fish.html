@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Fish — Stillwater</title>
+    <meta
+      name="description"
+      content="Underwater boids: separation, alignment, and cohesion derived from first principles, a depth preference read straight from the bathymetry, and glints on the surface where fish cruise shallow — the hunt's first telegraph."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-fish"></div>
+      <div class="hero-title">
+        <h1>The Fish</h1>
+        <p class="subtitle">
+          Two hundred and sixty trout, three steering rules, and one lakebed.
+          Nothing in this school is scripted — the schooling, the cruising
+          contour, and the rises all fall out of arithmetic any single fish
+          could do.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Fish Hawk has no minimap, no quest markers, and no glowing fish icons.
+        That's not minimalism for its own sake — it's the design: <em>the
+        ecosystem is the HUD</em>. When you're circling over the lake deciding
+        where to hunt, the information you act on is the information a real
+        osprey acts on: a glint where a flank catches the sun, a shadow sliding
+        over pale sand, a ring spreading where something rose. Which means the
+        fish can't be spawn points with a timer. They have to be a population
+        that lives somewhere, moves somehow, and — crucially — <em>tells on
+        itself</em> in ways the player can learn to read. This post builds that
+        population: a school of underwater boids pinned to
+        <a href="/lakebed.html">the bathymetry we derived under the lake</a>,
+        with the first telegraph (the glint) wired up at the end.
+      </p>
+      <p>
+        The plan is three steps, each one a force added to a fish's tiny brain:
+        the three classic flocking rules, then the terrain terms that turn an
+        abstract flock into lake fish, then the payoff on the surface.
+      </p>
+
+      <h2><span class="kicker">Step 1 · Three rules</span>A school is not a thing</h2>
+      <p>
+        A school of fish has no leader and no plan, and that's the whole trick:
+        schooling is an <em>emergent</em> behavior, which for us means we never
+        have to animate it. Each fish runs the same three steering rules every
+        frame, each one computed only from neighbors within a small radius:
+      </p>
+      <pre><code>separation  steer away from neighbors closer than 0.7 m   <span class="cm">// don't collide</span>
+alignment   match the average heading within 2.4 m        <span class="cm">// swim the same way</span>
+cohesion    steer toward the local center within 3.6 m    <span class="cm">// don't get left out</span></code></pre>
+      <p>
+        Each rule produces a desired velocity; the steering force is
+        <code>desired − current</code>, clamped to a maximum turn authority
+        (about <code>2.2 m/s²</code> for our trout — fish corner well, but not
+        instantly). Separation deserves one refinement: the push from each
+        too-close neighbor is weighted by <code>1/d²</code>, so the fish about
+        to hit you dominates the fish merely nearby. The three forces are
+        weighted, summed, and integrated, and the speed relaxes back toward a
+        per-fish cruise speed so the school doesn't either stall or run away
+        with itself. Why these radii? Order matters more than the values:
+        separation must be the shortest range and cohesion the longest, so the
+        rules can't deadlock — push apart up close, pull together at a
+        distance, and agree on a heading in between. Drag the weights below and
+        find the failure modes yourself: cohesion alone collapses the school
+        into a knot, separation alone is gas, and alignment is the magic that
+        turns a crowd into a <em>current</em>.
+      </p>
+      <div data-demo="boids"></div>
+      <aside class="note">
+        <span class="note-label">Aside · The cost of honesty</span>
+        <p>
+          Our school does the naive thing: every fish checks every other fish,
+          about 20,000 pair tests for 140 fish. At a few hundred fish that's
+          well under half a millisecond, so honesty is free. The classic
+          upgrade — bin fish into a coarse grid, check only the 27 neighboring
+          cells — drops the cost to nearly linear, and that's the path the
+          full game takes if the lake ever needs thousands. The rules
+          themselves never change; only the bookkeeping does.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · The lakebed votes</span>Depth preference from bathymetry</h2>
+      <p>
+        The tank demo above could be anywhere. Real lake fish are
+        <em>somewhere</em>: a trout holds over structure, follows the shore
+        contour, and avoids both the beach (too shallow, too bright, too
+        dangerous) and the open middle (nothing to eat). We get all of that
+        from two more forces, both powered by the
+        <a href="/lakebed.html">canonical terrain function</a> — the same
+        arithmetic that built the mountains keeps the fish honest.
+      </p>
+      <p>
+        First, the <strong>comfort band</strong>: each fish samples the water
+        column under itself, <code>column = −terrainHeightAt(x, z)</code>. If
+        the column is shallower than ~2 m or deeper than ~10 m, the fish steers
+        along the depth gradient back toward the band — and here the cached
+        bathymetry lattice from the Basin pays off again, because its
+        <code>gradientAt</code> tells us which way "deeper" is for ~50
+        nanoseconds a query. The school ends up draped along the 2–10 m
+        contour like a curtain, which is exactly where a real littoral school
+        sits. Second, the <strong>vertical hold</strong>: a gentle spring pulls
+        each fish toward its preferred swim depth (about 1.6 m down), clamped
+        to stay a margin above the bed and below the surface. Together the two
+        forces mean the <em>shape of the lakebed</em> is visible in the shape
+        of the school — squeeze the comfort band with the sliders and watch a
+        hundred and eighty fish redraw the contour for you.
+      </p>
+      <div data-demo="depth"></div>
+      <aside class="note">
+        <span class="note-label">Aside · Why fish hold a depth at all</span>
+        <p>
+          Real drivers are temperature and food: lakes stratify in summer into
+          a warm upper layer and a cold deep one, and trout ride the boundary
+          — the thermocline — where oxygen and temperature are both
+          tolerable, making feeding runs upward. Our single "preferred depth"
+          number is a stand-in for all of that, and it's deliberately a
+          parameter: at dusk the hatch post will shove it toward the surface,
+          which is the entire drama of the next essay.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 3 · The telegraph</span>Glints: fish you can hunt</h2>
+      <p>
+        Now flip to the osprey's side of the surface. From above, the water is
+        a mirror — <a href="/skin.html">mostly reflection at grazing angles</a>
+        — and the school is invisible. What gives a shallow fish away in real
+        life is specular: a trout's flank is a mirror too, and as the fish
+        rolls and yaws while it cruises, that mirror sweeps past the
+        sun-to-your-eye angle and fires a brief flash through the surface.
+        Glints are <em>events</em>, not states: a fish that never turns never
+        flashes.
+      </p>
+      <p>
+        We model exactly that and nothing more. Every fish shallower than about
+        a meter gets a candidate glint: a small additive streak lying on the
+        surface at the fish's position, stretched along its heading. Its
+        brightness is <code>shallowness × flash</code> — shallowness fades the
+        glint out by depth (more water, more absorption, less mirror), and
+        flash is a slow per-fish cycle standing in for the body roll, raised
+        to a power so it spikes briefly instead of glowing steadily. The
+        result reads precisely like the real thing: scattered winks that say
+        <em>fish, here, shallow,</em> without one pixel of UI. In the demo
+        below the school has been pushed up to cruise depth; drag the hour
+        toward sunset and the low sun makes the show better — which will
+        matter, because dusk is when everything in this season converges.
+      </p>
+      <div data-demo="glints"></div>
+
+      <p>
+        Take stock of what the game just gained. A <code>FishSchool</code> you
+        can query — every position, depth, and velocity, sixty times a second
+        — pinned to real bathymetry, plus a surface layer that telegraphs the
+        shallow ones to a circling player. The school also carries a rise
+        behavior (a fish driving to the surface after floating food), but
+        we've kept it dormant in this post, because rises deserve their own
+        story: they're triggered by the biggest scheduled event in the
+        valley's day. Next post, the world clock hits seven in the evening,
+        a hundred thousand mayflies make a terrible decision, and the fish
+        finally break the surface — each one announcing itself on
+        <a href="/touchgo.html">the disturbance bus</a> as a ring you'll hunt
+        by. That's <a href="/hatch.html">The Hatch</a>.
+      </p>
+    </main>
+    <footer>
+      <p><a href="https://github.com/ericrius1/stillwater">Source on GitHub</a></p>
+    </footer>
+    <script type="module" src="/src/fish.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Crown — Stillwater</title>
+    <meta
+      name="description"
+      content="Spray particles paid for by impact energy: GPU droplets that inherit the surface velocity, fly ballistic arcs, and rejoin the simulation as rain — the anatomy of a splash."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-crown"></div>
+      <div class="hero-title">
+        <h1>The Crown</h1>
+        <p class="subtitle">
+          A weight drops, the lake throws a ring of droplets, and every one of
+          them lands somewhere and rings the water again. Drag the time slider
+          down and watch a splash the way a high-speed camera would.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Put a real splash next to our <a href="/coupling.html">coupled sim</a> and one
+        absence screams: nothing leaves the water. The
+        <a href="/waves.html">height field</a> is a function — one height per location —
+        so the moment water needs to exist <em>above</em> other water, the model is
+        structurally out of moves. And the crown is not a garnish. Freeze any photo of
+        a kingfisher or an osprey hitting a lake: the white ring of flung droplets IS
+        the splash's silhouette; the rings spreading underneath are almost invisible by
+        comparison. Fish Hawk's centerpiece dive cannot ship without it. So today we
+        leave the grid: a pool of a few thousand particles on the GPU, born where the
+        impact happens, paid for by its energy, and — this is the part that makes them
+        look attached rather than decorative — launched by the simulation's own
+        velocity field. Scroll the anatomy first:
+      </p>
+
+      <div data-scrolly="splash-anatomy"></div>
+
+      <h2><span class="kicker">Step 1 · The budget</span>Energy buys droplets</h2>
+      <p>
+        Every disturbance on the bus carries an energy number — the same scalar the
+        <a href="/coupling.html">momentum impulse</a> and (eventually) the audio
+        synthesizer read. Spray spends it too, with square-root scaling on both axes:
+        droplet <em>count</em> ≈ 90·√E and launch <em>speed</em> ≈ √E·(speed
+        constants), because kinetic energy goes as v², so the velocity a budget can
+        afford goes as its square root. A fish rise (E ≈ 0.05) buys a couple dozen
+        lazy droplets; a full talon strike (E ≈ 1–4) buys hundreds, moving fast.
+        Nothing else changes — same pool, same shader — so the whole continuum from
+        plop to eruption is one slider:
+      </p>
+
+      <div data-demo="energy-count"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · A pool, not a list</span>
+        <p>
+          The droplets live in a fixed GPU pool (4,096 slots) with a wrapping write
+          cursor: each burst claims the next N slots, alive or not. No allocation, no
+          compaction, no CPU round trip — a dead droplet is just a slot whose scale
+          is zero. The cost of the whole system is therefore constant whether the
+          air is empty or full, which is exactly the property the
+          <a href="/simbubble.html">sim bubble</a> taught us to demand: budgets that
+          do not depend on how exciting the moment is.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · The flight</span>Ballistics with drag</h2>
+      <p>
+        Airborne water is refreshingly cheap physics: gravity pulls, drag resists,
+        nothing else. Each droplet integrates <code>v ← (v − g·dt·ŷ) / (1 + k·dt)</code>,
+        <code>p ← p + v·dt</code> — the same symplectic kick-and-drift as the wave
+        grid, one particle per GPU thread, no neighbors to read so no ping-pong
+        needed. The drag constant <code>k</code> matters more than it looks: with
+        <code>k = 0</code> droplets fly textbook parabolas and read as gravel; real
+        droplets are light enough that air noticeably brakes them, rounding the top
+        of every arc. Slow time down and compare:
+      </p>
+      <p>
+        Note what we deliberately leave out: droplets never see each other. Real
+        spray is dilute almost immediately after launch — collisions between
+        airborne droplets are rare enough that ignoring them costs nothing visible —
+        and independence is what makes the GPU mapping perfect: one thread per
+        droplet, no neighbor reads, no ping-pong, no ordering. Rendering rides the
+        same buffer: each droplet is a camera-facing sprite whose position the
+        vertex stage reads straight from the storage buffer the compute pass just
+        wrote. The droplets are born, fly, and die without a single byte crossing
+        back to the CPU.
+      </p>
+
+      <div data-demo="droplet-arcs"></div>
+
+      <h2><span class="kicker">Step 3 · The launch</span>Inheriting the surface</h2>
+      <p>
+        Where a droplet starts matters less than what it starts <em>with</em>. The
+        crown's signature flare — droplets leaning outward as they rise — isn't a
+        spawn-cone parameter; it's inheritance. At the moment of impact the
+        <a href="/coupling.html">momentum injection</a> has the surface rushing
+        radially outward, and real droplets are pinched off from that moving water.
+        So the spawn kernel samples the sim's velocity field at each droplet's birth
+        position — a storage-buffer read inside a compute shader, the same
+        <code>fieldNode</code> the renderer uses — and adds it to the launch velocity.
+        Physics decides the crown's shape: hit harder, the field rushes faster, the
+        crown flares wider. Turn inheritance off and the same droplets become a
+        polite, wrong, decorative fountain:
+      </p>
+
+      <div data-demo="crown-ring"></div>
+
+      <h2><span class="kicker">Step 4 · The rejoin</span>Rain on the bus</h2>
+      <p>
+        Every arc ends at the water. A droplet crossing <code>y = 0</code> on the way
+        down dies in the pool — but it shouldn't just vanish: each landing is a tiny
+        impact of its own. The honest implementation would read droplet landings back
+        from the GPU; instead we use the trick this site keeps reaching for —
+        <a href="/ripples.html">evaluate the same math twice</a>. At emit time the CPU
+        runs the identical ballistic formulas to estimate when and where a handful of
+        representative droplets will land, and schedules small <code>"rain"</code>
+        disturbances at those times — straight onto the bus, where the sim (and later
+        the audio) hears them like any other event. Secondary rings, a dusting of
+        foam, and the patter that makes a splash feel finished:
+      </p>
+
+      <div data-demo="rejoin-rings"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · Real crowns, briefly</span>
+        <p>
+          The crown's rim breaking into regularly-spaced points (the bit that looks
+          like an actual coronet) is a Rayleigh–Plateau instability — the rising
+          sheet's edge is a liquid cylinder, and liquid cylinders bead up at a
+          preferred wavelength. We don't simulate the sheet, so our crown is made of
+          droplets from birth; at game framing the difference is invisible. The
+          Worthington jet — the column that fires straight up when the cavity
+          collapses — we get a free echo of, because the momentum impulse's rebound
+          converges at the center. High-speed photography of splashes is a genuinely
+          beautiful rabbit hole; this page is the minimum that looks true at ten
+          meters.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Onward</span>What this unlocks</h2>
+      <p>
+        The splash now has its full vertical anatomy: rings below, crown above,
+        rain between. What it lacks is <em>memory</em>. Watch any real strike and
+        the lake stays marked for half a minute — a patch of foam drifting on the
+        currents, stretched by wakes. And moving bodies should write longer
+        signatures: the V-shaped wake fan that trails anything crossing water. Both
+        are the same machinery, advected by the sim's velocity field. Next post:
+        foam that rides the flow, the Kelvin wedge derived honestly, and the
+        slow-motion strike showcase this whole series has been building toward —
+        with the bird, finally, doing the striking.
+      </p>
+    </main>
+    <footer>
+      <p>Stillwater — building Fish Hawk in public, one system at a time.</p>
+    </footer>
+    <script type="module" src="/src/crown.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Night Shift — Stillwater</title>
+    <meta
+      name="description"
+      content="A moon on a real path, lit by the real sun so its phase is pure geometry; a star field hashed into the sky dome, wheeling around the celestial pole; and the moonlight glitter path on black water."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-night"></div>
+      <div class="hero-title">
+        <h1>The Night Shift</h1>
+        <p class="subtitle">
+          The clock keeps running after sunset. A moon with a real path takes the
+          sun's old job, stars wheel around a fixed pole, and the lake — black
+          now — carries a single road of light. The finale of Air &amp; Light is
+          the quietest scene in the game.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Fish Hawk has no fail state, but it does have an honest clock — and a day
+        you spend fishing badly ends in the dark. We always wanted that to be a
+        reward rather than a punishment: the moonlit lake is the photo-mode hour,
+        the screen you leave running. Real ospreys are diurnal — by rights the
+        bird should be on the snag, head under wing — so night exists for the
+        player who stayed to watch. It is also the last hole in this series'
+        contract. The <a href="/air.html">atmosphere</a> already dims honestly as
+        the sun drops; what is missing is everything that shows up <em>after</em>:
+        a second light source with its own path, a few thousand points of light
+        with a shared axis, and water optics at one four-hundred-thousandth of
+        the energy budget. Tonight we ship all three.
+      </p>
+
+      <h2><span class="kicker">Step 1 · The moon</span>A path, and phase as a dot product</h2>
+      <p>
+        The moon costs us almost nothing, because <a href="/air.html">part
+        one</a> already built the machinery: a body's direction from latitude,
+        declination, and hour angle. The moon is just a second caller with a lag
+        — Stillwater fixes it 12 hours behind the sun with its own slight
+        declination, which makes every night a full-moon night that rises near
+        sunset and sets near sunrise. (A real moon slips ~50 minutes later each
+        night and waxes as it goes; one season, one moon — declared, like the
+        April sun.)
+      </p>
+      <p>
+        Here is the part that still delights me: we never draw a phase. The moon
+        in these scenes is an actual sphere, hung along its direction and lit by
+        the <em>actual sun direction</em> — the same vector that set below the
+        horizon hours ago. The sun is below <em>our</em> horizon; the moon, high
+        in the sky, still sees it. Lambert shading does the rest, and the
+        illuminated fraction follows the textbook formula
+        <code>k = (1 − cos ψ)/2</code> with <code>ψ</code> the sun–moon angle.
+        Drag the lag slider below — pulling the moon away from opposition — and
+        watch a terminator walk across the disc. Nobody drew a crescent;
+        geometry did:
+      </p>
+
+      <div data-demo="moon-arc"></div>
+
+      <h2><span class="kicker">Step 2 · The stars</span>A lattice in the sky</h2>
+      <p>
+        Stars want to be cheap. Instead of point sprites or a texture, they live
+        <em>inside the sky dome's fragment shader</em>: take the view direction,
+        scale it onto a 3D lattice, and let each lattice cell roll deterministic
+        dice — one candidate star per cell, with a jittered position, a
+        power-law brightness (most stars faint, a few brilliant, like the real
+        magnitude distribution), a temperature tint from blue-white to orange,
+        and a twinkle phase. The same cell always rolls the same dice, so the
+        sky is the same sky every night of the game.
+      </p>
+      <p>
+        Motion comes free and correct. The dome turns once a day around the
+        celestial pole — the axis from <a href="/air.html">part one</a>, standing
+        exactly 46.6° above the northern horizon. So we rotate the
+        <em>sampling direction</em> around that axis by the hour angle before
+        hashing: the entire field wheels rigidly, circumpolar stars circling the
+        pole, southern stars rising and setting, with zero geometry moved.
+        Twinkle strengthens toward the horizon, where starlight crosses the most
+        air — the same air-mass argument as everything else in this series. The
+        twilight gate fades the field in through nautical twilight, full by
+        astronomical. Look north and scrub the night:
+      </p>
+
+      <div data-demo="star-dome"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · The exposure confession</span>
+        <p>
+          Moonlight is about 400,000× dimmer than sunlight. Render that honestly
+          through a fixed tone map and the screen is black. Real eyes solve it
+          with dark adaptation, so we do the cinematic equivalent: night scenes
+          raise the tone-mapping exposure (×5 here, stated in the readout), and
+          the moon's light is boosted to a playable ~1/250 of the sun with a
+          blue-shifted tint standing in for scotopic vision — the eye's rod
+          cells, which dominate at night, cannot see red. Two declared lies in
+          service of one truth: nights you cannot see are nights nobody
+          witnesses.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 3 · The glitter path</span>Moonlight on black water</h2>
+      <p>
+        Now the payoff scene. At night the Fresnel arithmetic from
+        <a href="/skin.html">the very first post</a> goes stark: the water body
+        term is essentially black (nothing below to scatter back), the sky
+        reflection is faint star-field and moon-glow, and the only loud term left
+        is the specular glint — pointed at the moon now instead of the sun. That
+        long road of light running from the far shore to your feet is thousands
+        of wave facets, each briefly tilted just right to mirror the moon at
+        you. Its geometry is pure statistics: the path's angular length is set by
+        the spread of surface slopes, roughly <code>±2σ</code> around the mirror
+        direction, and σ scales with the wind — because
+        <a href="/ripples.html">every wave amplitude in the table does</a>.
+        Glass-calm water gives a single sharp moon-image; a 4 m/s breeze smears
+        it into a kilometer of shimmer. Same dot product, same roughness math,
+        zero new shader code — just a different light at the other end:
+      </p>
+
+      <div data-demo="moon-glitter"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · Why the path always points at you</span>
+        <p>
+          Everyone on a shoreline sees their own glitter path, aimed directly at
+          them — it is the locus of facets whose mirror bounce happens to connect
+          <em>your</em> eye to the moon, and that set is different for every
+          observer. It is the same reason the sun glint chased the camera in
+          <a href="/skin.html">The Skin of the Lake</a>: a mirror path is a
+          relationship, not a place.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 4 · The whole night</span>Assembly</h2>
+      <p>
+        The hero at the top is the series finale running live: the atmosphere
+        carrying moon-scattered blue and an airglow floor, the star lattice
+        wheeling overhead, the full moon dragging its glitter road across water
+        ripples that still answer the <a href="/updrafts.html">one wind
+        field</a>, with the <a href="/stillwater.html">Mirror's lake</a> swapped
+        onto the moon through the same environment seam it has always used — sun
+        direction, sun color, sky function. The lake never learned that night
+        exists. It just reflects what it is given, which was the design bet of
+        this whole season.
+      </p>
+
+      <h2><span class="kicker">Onward</span>What this unlocks</h2>
+      <p>
+        Air &amp; Light is complete: a clock-keyed sun and palette, fog and mist
+        with closed-form math, raymarched cumulus on the spine wind, a weather
+        machine that rains on the bus, and now the night. Every later series
+        reads this contract — the grading post keys its color by the hour, the
+        adaptive score will know dusk from dawn, and the game's photo mode
+        inherits a sky worth pausing for. Next up the valley comes alive: fish
+        that school and rise, mayflies at golden hour, swallows working the
+        surface — an ecosystem that reads the same clock this series just taught
+        to glow.
+      </p>
+    </main>
+    <footer>
+      <p>Stillwater — building Fish Hawk in public, one system at a time.</p>
+    </footer>
+    <script type="module" src="/src/night.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Shore — Stillwater</title>
+    <meta
+      name="description"
+      content="Tens of thousands of instanced grass blades and cattail reeds, planted by altitude, slope, and water depth, all bending to the one spine wind field — the shoreline becomes the place where you can see the weather."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-shore"></div>
+      <div class="hero-title">
+        <h1>The Shore</h1>
+        <p class="subtitle">
+          The waterline gets soft: a meadow that leans with every gust and a
+          reed bed standing in the shallows, two draw calls swaying to the
+          same wind that steers the ripples behind them.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Everything alive in this series so far swims or flies. But the thing
+        that most makes a landscape feel inhabited is humbler: ground cover
+        that <em>moves</em>. The osprey game needs the shore for three jobs.
+        First, scale and parallax — when you sweep low over the bank on a
+        hunting turn, grass rushing underneath is half the sensation of
+        speed. Second, weather made visible on land: the
+        <a href="/ripples.html">wind field already steers the ripples</a>, and
+        when a gust crosses from water onto a meadow that bends in the same
+        direction at the same moment, the world agrees with itself in a way
+        you feel rather than notice. Third, ecology: the
+        <a href="/hatch.html">mayflies</a> need a margin to swarm over, and
+        reed beds are where a glacial lake's food chain actually lives. So
+        this post plants the waterline — and like
+        <a href="/forest.html">the forest before it</a>, the budget rule is
+        absolute: populations, not draw calls.
+      </p>
+
+      <h2><span class="kicker">Step 1 · One blade</span>Bend is a material, not an animation</h2>
+      <p>
+        A grass blade is eight triangles: a four-segment tapered strip,
+        unit-height so instance scale is blade height, vertex-colored dark at
+        the root and pale at the tip, with a little built-in droop so still
+        air doesn't look like a comb. A cattail reed is about twenty: a
+        three-sided stalk, the brown seed head, one arching leaf. That's the
+        entire geometry budget, because — same trick as
+        <a href="/forest.html">the conifers</a> — the population differs only
+        by instance transform, and all the life happens in the vertex stage.
+      </p>
+      <p>
+        The sway shader starts from real beam physics, simplified until it's
+        three multiplies. A blade is a cantilever fixed at the root with the
+        wind loading it along its length; its static deflection grows
+        steeply toward the free end, so we bend each vertex by
+        <code>lean ∝ height²</code> — the tip travels far, the root barely
+        moves, and the blade appears to <em>curve</em> even though we never
+        rotate anything. The lean direction and strength come from the spine
+        wind, sampled once per frame on the CPU and handed to the GPU as two
+        uniforms: one sample, ten thousand blades. Stiffness is a parameter:
+        grass uses the full quadratic and a high compliance; reeds use a 1.6
+        exponent and a third the compliance, so they nod where grass bows.
+        Then two details that sell it. A <em>traveling gust wave</em> — the
+        bend amplitude is modulated by a sine moving through world space
+        along the wind direction at the wind's own speed, wavelength matched
+        to the wind field's 60 m gust scale — so gusts visibly sweep
+        <em>across</em> the meadow instead of pumping every blade in unison.
+        And per-blade flutter: a fast, small wobble phase-hashed from the
+        instance index, free of any per-instance data. Push the wind slider
+        and watch the whole population answer.
+      </p>
+      <div data-demo="blade"></div>
+
+      <h2><span class="kicker">Step 2 · Where plants stand</span>Altitude, slope, and the waterline</h2>
+      <p>
+        Placement reuses the deterministic scatter recipe — a candidate
+        lattice, integer-hash jitter, rejection filters, no
+        <code>Math.random()</code>, so the shoreline you learn is the
+        shoreline you keep. What's new is the filters, because grass and
+        reeds read the terrain differently:
+      </p>
+      <pre><code>grass   0.25 m &lt; h &lt; 26 − 18·hash      <span class="cm">// the meadow band above the beach, ragged top edge</span>
+        normal.y ≥ 0.8                 <span class="cm">// meadows are gentle ground</span>
+        fbm clumps                     <span class="cm">// patches and partings, not fuzz</span>
+reeds   −0.7 m &lt; h &lt; +0.25 m           <span class="cm">// rooted UNDERWATER, standing into the air</span>
+        hard clumping                  <span class="cm">// rhizome colonies, not individuals</span></code></pre>
+      <p>
+        The reed filter is the one with teeth: it accepts candidates whose
+        <em>terrain</em> height sits in a 95 cm band straddling the
+        waterline, which is only ever true in a thin ribbon along the shore
+        — the band where <a href="/lakebed.html">the bathymetry</a> crosses
+        zero. The mesh is planted on the bed and pokes through the water
+        surface, which costs nothing and looks exactly right: stalks standing
+        in the shallows, dry meadow behind, open water in front. Reeds also
+        clump far harder than grass (a tighter threshold on the same noise
+        field), because cattails spread by rhizome — a colony is one plant
+        with ten thousand stems. Toggle the rules below and watch each one
+        earn its keep: altitude off drowns the meadow, slope off carpets the
+        bluffs, clumping off is static.
+      </p>
+      <div data-demo="placement"></div>
+      <aside class="note">
+        <span class="note-label">Aside · The reed bed is the nursery</span>
+        <p>
+          Putting the reeds in the shallows isn't set dressing — it closes
+          this season's loop. Emergent vegetation is where a real lake's
+          littoral food web concentrates: nymphs graze its biofilm, fish fry
+          shelter among the stems, and swallows nest within commuting range
+          of exactly these margins. Our mayfly emergence sites were sampled
+          from 0.5–6 m depths along this same shore, so the swarm, the
+          rises, and the reed bed all crowd into the same hundred meters —
+          which is why the dusk scene in the next post has a stage at all.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 3 · One weather</span>The wind you can see twice</h2>
+      <p>
+        Here's the payoff shot for the spine architecture, and it costs zero
+        new code: water and meadow in one frame, one wind. The lake's ripple
+        amplitude scales with wind speed (the surface reads
+        <code>wind.speed</code> every frame, as it has
+        <a href="/ripples.html">since the second post on this site</a>), and
+        the grass compliance multiplies the same number. Drag the slider from
+        half a meter per second to ten: at the bottom the lake goes to glass
+        and the meadow to a held breath; at the top, whitecap-grade chop and
+        a meadow streaming flat, no coordination code anywhere — just two
+        renderers quoting the same field. Swing the direction dial and both
+        rotate together. In the finished game this is ambient truth the
+        player absorbs without being told: look at any shoreline and you
+        know, before you commit to a dive line, what the air over it is
+        doing.
+      </p>
+      <div data-demo="oneweather"></div>
+
+      <p>
+        The hero scene up top is the assembled margin — tens of thousands of
+        blades and a reed colony in two instanced draw calls, golden-hour
+        light, ripples and rings on the bus-driven water behind. Every
+        population in the season is now built: fish below, insects at the
+        film, birds above, plants at the edge. One post remains, and it
+        writes itself into the schedule the clock has been keeping all along
+        — the moment all five systems are on screen at once, doing the same
+        evening for their own reasons. That's
+        <a href="/dusk.html">The Dusk Event</a>.
+      </p>
+    </main>
+    <footer>
+      <p><a href="https://github.com/ericrius1/stillwater">Source on GitHub</a></p>
+    </footer>
+    <script type="module" src="/src/shore.ts"></script>
+  </body>
+</html>

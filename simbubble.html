@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Sim Bubble — Stillwater</title>
+    <meta
+      name="description"
+      content="A fixed-size simulation window that follows the bird across the lake: snap-to-cell shifts, an edge fade into the ambient analytic water, and a provider swap nobody can see."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-simbubble"></div>
+      <div class="hero-title">
+        <h1>The Sim Bubble</h1>
+        <p class="subtitle">
+          The osprey tows a 26-meter patch of real physics around a
+          kilometer-wide lake. Press "show window" to see the trick;
+          release it and try to find the seam again.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        Here's the budget problem that decides Fish Hawk's architecture. The
+        <a href="/shallows.html">shallow-water sim</a> needs cells about 14 cm wide to
+        carry a crisp splash ring. Our lake is roughly 600 m across. Cover it all and
+        that's nearly twenty million cells stepped multiple times a frame — not a
+        chance, and almost all of it would simulate flat calm nobody is looking at.
+        Meanwhile the <a href="/ripples.html">ambient wave table</a> already renders
+        endless convincing water for free, and it's analytic — evaluable anywhere,
+        instantly. So the design writes itself: keep one fixed grid, a couple hundred
+        cells on a side, <em>parked wherever the action is</em>, and let the analytic
+        lake own everything else. The bird is the action. The window follows the bird.
+        This post builds that window — the series' namesake trick — in three moves:
+        the shift, the fade, and the swap.
+      </p>
+
+      <h2><span class="kicker">Step 1 · The traveling grid</span>Snap, shift, refill</h2>
+      <p>
+        The grid never changes size; only its anchor in the world moves. When the bird
+        drifts, we re-center — but never by fractional cells. Moving by an arbitrary
+        offset would mean resampling: every new cell a blend of four old ones, and a
+        little blur leaks in <em>every frame the window moves</em>. Death by a thousand
+        interpolations. Snapping the center to whole lattice steps makes the move an
+        exact memory copy instead: cell <code>(i, j)</code> takes the value of cell
+        <code>(i+di, j+dj)</code>, bit for bit. That's one ping-pong compute pass —
+        read A shifted, write B — plus a depth-buffer refill at the new position, since
+        the <a href="/lakebed.html">bathymetry</a> under the window changed too. The
+        snap offset is at most half a cell (7 cm); nothing at gameplay distance can see
+        it. Scroll the mechanism:
+      </p>
+
+      <div data-scrolly="window-shift"></div>
+
+      <p>
+        Two details earn their keep. Cells entering at the leading edge initialize to
+        zero — flat water — which sounds like a visible pop until you remember the rim
+        is also the <a href="/waves.html">sponge</a>: anything near the edge has
+        already been damped toward zero, so "new cell = flat" matches what was there
+        anyway. And cells falling off the trailing edge are simply forgotten — their
+        waves were leaving the simulation's jurisdiction regardless. Drag the target
+        around and read the machinery directly — the heat view paints height, and the
+        orange band is the rim:
+      </p>
+
+      <div data-demo="follow-heat"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · Why not just scroll the texture origin?</span>
+        <p>
+          A classic alternative wraps the grid toroidally and moves a "origin" marker
+          instead of copying memory — clipmap style, like the terrain rings in
+          <a href="/farshore.html">The Far Shore</a>. It avoids the copy entirely, but
+          every neighbor lookup in every kernel then needs wrap-around index math, and
+          the stencil reads of a wave sim touch five cells per cell per substep —
+          that's a lot of modulo. The dumb copy is one extra pass only on frames the
+          window actually crosses a cell line. We measured our priorities and kept the
+          kernels simple.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · The invisible seam</span>Fade at the rim</h2>
+      <p>
+        Inside the window, real physics; outside, the wind-driven wave table. At the
+        boundary they disagree — the sim carries a splash ring the ambient lake has
+        never heard of, and cutting from one to the other mid-wave leaves a visible
+        cliff. The fix is the oldest trick in graphics, applied with one insight: the
+        sim doesn't store the water's height. It stores the <strong>deviation</strong>
+        from the ambient surface. The rendered height everywhere is
+      </p>
+      <pre><code>height(x, z) = ambient(x, z, t) + fade(x, z) · η_sim(x, z)</code></pre>
+      <p>
+        where <code>fade</code> is 1 through the window's core and slides to 0 across
+        the rim band. Because the sim is a <em>delta</em>, fading it out doesn't fade
+        the water out — it just returns the surface to the ambient waves, which were
+        underneath all along. The wind ripples blow straight through the window
+        unmolested; only the splash physics fades. And the fade band is the same rim
+        where the sponge eats outgoing waves, so by the time a ring reaches the place
+        it would be clipped, there's almost nothing left to clip. This demo boots with
+        the fade <em>off</em> so you can see the crime scene; press the button to fix
+        it:
+      </p>
+
+      <div data-demo="edge-blend"></div>
+
+      <h2><span class="kicker">Step 3 · The swap</span>One question, any answer</h2>
+      <p>
+        The visual seam was half the job. The other half is everything that
+        <em>asks</em> about the water: the bird floating in
+        <a href="/touchgo.html">Touch and Go</a>, fish deciding when to rise, the
+        journal camera — all of them call one site-wide function,
+        <code>waterHeightAt(x, z, t)</code>, against a swappable provider. The Mirror
+        installed the ambient provider back in <a href="/ripples.html">Wind over
+        Water</a>; the spine's contract says callers may never know which
+        implementation answers. So The Splash registers its own:
+      </p>
+      <pre><code>heightAt(x, z, t) = ambient.heightAt(x, z, t) + fade(x, z) · sim η(x, z)</code></pre>
+      <p>
+        — the exact formula the renderer draws, answered on the CPU from a mirror of
+        the sim buffer that reads back asynchronously each frame (about which much
+        more in <a href="/coupling.html">part four</a>). One call to
+        <code>setWaterProvider</code> and every consumer on the site is splash-aware,
+        having changed zero lines of code. The demo below scatters floats across the
+        lake while the window wanders among them on its own. Watch a float as the
+        window passes over it: ambient bobbing, then full splash response, then
+        ambient again — and the float's code is just <code>y = waterHeightAt(x, z, t)</code>,
+        the same line the buoys used two series ago:
+      </p>
+
+      <div data-demo="float-anywhere"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · How big should the bubble be?</span>
+        <p>
+          The window must hold the splash's interesting lifetime. A strike ring at the
+          capped wave speed (≈3.8 m/s) crosses a 26 m window in about three and a half
+          seconds — and after three seconds of damping, a ring has spent most of its
+          energy anyway. Bigger windows buy little: at fixed cell count the cells
+          coarsen and the crisp short-wavelength detail near the impact — the part you
+          actually look at — gets worse. 192² cells over 24–30 m is the sweet spot on
+          this hardware, and it's why the budget never moves even when the whole
+          screen is water.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Onward</span>What this unlocks</h2>
+      <p>
+        The lake now has a body double that goes wherever the camera cares. But so far
+        information flows one way: the bus pokes the sim, the sim moves the surface.
+        A floating body still rides the water like a sticker — glued to the height,
+        never pushed by it. Next post closes the loop: disturbance events become real
+        momentum in the velocity field, the CPU mirror lets us read the surface back,
+        and Archimedes takes over from there — buoyancy, drag, and bodies that get
+        shoved sideways by the very waves they made.
+      </p>
+    </main>
+    <footer>
+      <p>Stillwater — building Fish Hawk in public, one system at a time.</p>
+    </footer>
+    <script type="module" src="/src/simbubble.ts"></script>
+  </body>
+</html>

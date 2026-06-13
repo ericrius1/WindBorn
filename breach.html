@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Breach — Stillwater</title>
+    <meta
+      name="description"
+      content="The full dive cycle assembled with the real osprey: spot from altitude, tuck, plunge through the lens transition, the underwater grab, and the breach with water streaming off."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-breach"></div>
+      <div class="hero-title">
+        <h1>The Breach</h1>
+        <p class="subtitle">
+          Every system this season was built for the next ninety seconds of scroll:
+          the osprey circles, tucks, punches through the surface, takes a fish under
+          Snell's ceiling, and climbs out shedding water. The dive, assembled.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        This is the post the Under series exists for — honestly, it's the moment the
+        whole project exists for. Fish Hawk's centerpiece verb is the dive, and
+        every ingredient is finally on the shelf: a <a href="/osprey.html">real
+        osprey</a> with <a href="/poses.html">action poses</a> wired to springs, a
+        flight feel that knows what a <a href="/envelope.html">committed dive</a> is,
+        a <a href="/stillwater.html">surface</a> the camera can
+        <a href="/lens.html">cross</a>, a <a href="/snell.html">ceiling</a> overhead
+        and <a href="/caustics.html">bent light</a> below. What's left is
+        choreography and physics: a state machine that strings nine phases into one
+        motion, and the honest numbers for what water does to a 1.5&nbsp;kg bird arriving
+        at fifteen meters per second. The hero above runs the full loop; the steps
+        below take it apart.
+      </p>
+
+      <h2><span class="kicker">Step 1 · The spine of it</span>The dive cycle</h2>
+      <p>
+        The cycle is a state machine — <code>circle → hover → dive → strike →
+        plunge → rise → climb → recover</code> — where each phase sets two kinds of
+        outputs: forces on a point body (the position the bird actually flies) and
+        requests to the <a href="/poses.html">pose system</a> (what the body does
+        about it). Nothing here plays an animation clip; the tuck is the same spring
+        target it's always been, triggered by a phase instead of a button.
+      </p>
+      <p>
+        The physics worth deriving lives in three phases. The <em>dive</em> is
+        gravity plus commitment: tucked, the bird stops resisting and falls, gaining
+        roughly <code>v = √(2gh)</code> — call it 11&nbsp;m/s from six meters, nudged
+        higher by a final wing push; real ospreys arrive at 15–30&nbsp;m/s. The
+        <em>strike</em> swaps the silhouette: feet snap forward past the head in the
+        last meter and a half, because talons, not the beak, are the landing gear.
+        The <em>plunge</em> is the violent one. Water is ~830× denser than air, so
+        the drag that was negligible a wingbeat ago is suddenly everything: speed
+        decays like <code>e^(−kt)</code> with a constant measured in fractions of a
+        second, the bird sheds better than 3&nbsp;g in the first quarter second, and a
+        15&nbsp;m/s entry is spent by a meter and a half down. That's the physical reason
+        an osprey can't hunt deep water — the dive buys about one body length of
+        reach below the surface, ever. The cutaway below shows the whole profile
+        with the entry speed and peak deceleration measured live; try steeper
+        altitudes and watch the depth barely move:
+      </p>
+
+      <div data-demo="dive-profile"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · Feet-first is aim correction</span>
+        <p>
+          The strike pose isn't theater. Refraction displaces a fish's image from
+          the fish — apparent depth is true depth over 1.33 — and the osprey's
+          answer is geometry: steepen the final approach until the error mostly
+          cancels, then commit along that line with eyes closed behind the
+          nictitating membrane. Hitting feet-first puts the grabbing surface at the
+          front of the splash, a reversible outer toe makes the grip two-and-two
+          around the fish, and barbed footpads (spicules) hold what the talons
+          caught. Dive scoring in the game will charge for entry angle for exactly
+          these reasons.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 2 · The payoff frame</span>The grab</h2>
+      <p>
+        Underwater, the cycle has a quarter of a second to close the deal — so the
+        demo below gives you a slow-motion slider, because at full speed the grab is
+        nearly subliminal (it is in nature, too). The camera holds in the water and
+        watches the whole event arrive: the strike silhouette punching through the
+        ceiling in a sleeve of bubbles, the talons closing on the fish, the turn
+        toward the light. The fish is a deliberately minimal stand-in — a lofted
+        body, a tail-beat in the vertex shader, real countershading — enough to be
+        worth diving at until the ecosystem series ships real schooling fish and we
+        swap it out behind the same two lines of interface.
+      </p>
+      <p>
+        One detail to watch for: once caught, the fish rides <em>head-first</em>.
+        Real ospreys shuffle their grip mid-climb to point the catch along the
+        flight direction like a torpedo, cutting its drag roughly in half — a 1.5&nbsp;kg
+        bird hauling a 300&nbsp;g fish does not get to ignore aerodynamics. Ours snaps to
+        that orientation at the grab, which is one of those small lies (the shuffle
+        takes a second or two) that reads truer than the truth at game speed:
+      </p>
+
+      <div data-demo="the-grab"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · The membrane, again</span>
+        <p>
+          From the strike pose to the grab, the osprey is flying blind — the
+          nictitating membrane closed the moment before entry, and the aim was
+          frozen at the top of the strike. Biologists clocked the whole underwater
+          event at well under a second for most successful dives. That number is
+          quietly load-bearing for the game: the grab can be generous about
+          targeting because the player, like the bird, committed before the splash.
+          Skill lives in the approach, not in underwater steering.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 3 · The exit</span>Water off the wings</h2>
+      <p>
+        The breach sells the weight or nothing does. A soaked osprey is carrying a
+        film of water that can run to a noticeable fraction of body mass on top of
+        the fish, so the climb-out is deliberately laborious in the cycle: hover-gait
+        flapping at full effort for modest climb, none of the easy glide of the
+        approach. The water itself leaves in two channels we already own. The
+        <a href="/lens.html">lens overlay</a> streaks the camera if the camera came
+        through too. And the body sheds spray: an instanced-droplet emitter samples
+        points around the bird, launches them with the body's velocity plus a kick,
+        flies them ballistic, and lands them on the lake — where a few of them ping
+        the <a href="/touchgo.html">disturbance bus</a> as micro-rain, so the rings
+        under a climbing osprey are made by the same machinery as everything else
+        that touches this lake. The shake button triggers the real bird's signature
+        move: a mid-air full-body rotation shake, straight out of the field guides,
+        that dumps most of the film in half a second:
+      </p>
+
+      <div data-demo="water-off"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · What we're still faking</span>
+        <p>
+          Two honest placeholders remain in this scene. The splash itself is rings
+          plus bubbles plus spray — energetic bookkeeping, not fluid — and the crown
+          and cavity of a true talon strike are the flagship fluid series' job; the
+          bus events these demos emit are exactly the coupling surface it will
+          listen on. And the fish swap, as above. Both replacements land without
+          touching the dive cycle, which is the point of building against
+          interfaces.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Onward</span>What this unlocks</h2>
+      <p>
+        The dive cycle is the last system of the Under series, and with it Season
+        2's promise is one integration away: spot a real fish from altitude over the
+        <a href="/lakebed.html">real bathymetry</a>, dive through a real splash, and
+        come out heavier — playable, in one valley. The underwater second is no
+        longer a cut or a fade; it's a place with a ceiling, light, residents, and
+        consequences, and the camera goes there and comes back every single dive.
+        That's the loop the whole game hangs from. Next stop: wiring it into the
+        playable milestone, where you get the stick.
+      </p>
+    </main>
+    <footer>
+      <p>Stillwater — building Fish Hawk in public, one system at a time.</p>
+    </footer>
+    <script type="module" src="/src/breach.ts"></script>
+  </body>
+</html>

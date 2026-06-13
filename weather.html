@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>Weather Fronts — Stillwater</title>
+    <meta
+      name="description"
+      content="A calm/breezy/storm state machine that drives the one wind field: whitecaps gated by wind speed, rain as thousands of honest disturbance-bus events, and storm light that flattens the world."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-weather"></div>
+      <div class="hero-title">
+        <h1>Weather Fronts</h1>
+        <p class="subtitle">
+          Three states, one wind, and a million tiny splashes. The weather machine
+          eases the world between calm, breezy and storm — greying the sky,
+          breaking the crests into foam, and drumming rain onto the disturbance
+          bus. Force a storm and watch everything answer at once.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        In Fish Hawk, weather is the difficulty dial that never says so. A calm
+        morning is a tutorial: glass water, fish glints everywhere, easy lift. A
+        breezy afternoon makes the <a href="/updrafts.html">ridge lift</a>
+        generous but hides the fish under chop. A storm grounds sensible birds
+        entirely — a missed dive costs daylight, and there is less of it. The
+        machinery behind that dial is today's build, and it is deliberately
+        small: a state machine with three states and a rule that nothing ever
+        snaps. Fronts <em>arrive</em>. The sky from <a href="/air.html">part
+        one</a>, the clouds from <a href="/clouds.html">part three</a>, the lake
+        from <a href="/stillwater.html">The Mirror</a> — none of them will learn
+        a single new trick today. They will just be told different numbers,
+        slowly.
+      </p>
+
+      <h2><span class="kicker">Step 1 · The machine</span>Targets, not values</h2>
+      <p>
+        Each state is nothing but a table row of targets:
+      </p>
+      <pre><code>calm    wind  1.2 m/s   gust 0.30   overcast 0.06   rain   0/s
+breezy  wind  5.5 m/s   gust 0.55   overcast 0.34   rain   0/s
+storm   wind 11.0 m/s   gust 0.85   overcast 0.94   rain 260/s</code></pre>
+      <p>
+        The machine's live values chase those targets with per-quantity time
+        constants — wind shifts in about six seconds, the sky greys over nine,
+        rain arrives in three because a squall line really is a wall — using the
+        standard exponential ease <code>v += (target − v)·(1 − e^(−dt/τ))</code>.
+        Then the two write-backs that make it <em>the world's</em> weather rather
+        than a demo's: the eased wind speed and gustiness are written into the
+        spine's <code>wind</code> — the one field every system samples — and the
+        overcast value lands in the atmosphere's uniform. In auto mode the
+        machine walks calm → breezy → storm → breezy → calm with randomized
+        dwells. Watch the bars chase the orange target ticks:
+      </p>
+
+      <div data-demo="state-machine"></div>
+
+      <h2><span class="kicker">Step 2 · Whitecaps</span>The lake reports the wind</h2>
+      <p>
+        Sailors read wind off the water, and the Beaufort scale is the
+        codification: scattered whitecaps near 4 m/s (force 3), frequent by 7,
+        streaks of blown foam past 11. Our crests should break on the same
+        schedule. The wave table from <a href="/ripples.html">Wind over
+        Water</a> already scales amplitude with wind speed; whitecaps are a
+        fragment-stage question asked of the same waves: <em>is this point on a
+        crest, and is the wind past breaking?</em> Height normalized by the
+        wind-scaled amplitude says "crest"; the slope magnitude says "steep" — a
+        breaking wave is both — and a smoothstep gate on wind speed, opening at
+        3.5 m/s and saturating near 10, says whether crests break at all. Roughed
+        up by animated noise so foam arrives in patches, the mask mixes plain
+        white over the water's usual optics. One slider below sweeps the whole
+        scale; the readout speaks Beaufort:
+      </p>
+
+      <div data-demo="whitecaps"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · Why foam is white</span>
+        <p>
+          Lake water absorbs red and transmits blue-green — that was
+          <a href="/depths.html">the depths post</a>. Foam is the same water
+          shattered into bubbles: thousands of air–water interfaces scattering
+          all wavelengths equally before absorption gets a word in. White is what
+          scattering looks like when it wins. (The same argument made the clouds
+          white last post — foam is a cloud you can land on.)
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 3 · Rain</span>A million tiny splashes, one channel</h2>
+      <p>
+        Rain is where the <a href="/stillwater.html">disturbance bus</a> earns
+        its keep. Every drop that reaches the lake is one honest event:
+        <code>disturb({kind: "rain", x, z, energy: ~0.001, radius: 0.05})</code>.
+        The machine carries a fractional accumulator — 260 drops a second at 60
+        fps is about 4.3 per frame, and the remainder rolls over so the long-run
+        rate is exact. Nothing about the emitter knows what listens. Today the
+        listener is The Mirror's ring pool, turning each event into a spreading
+        capillary ring; next season the fluid sim will inject real momentum and
+        the audio series will synthesize patter from the very same events,
+        emitter untouched. The demo runs two readers at once — the water, and a
+        counter in the readout — as proof of the decoupling. The falling streaks
+        are garnish; the bus events are the rain:
+      </p>
+
+      <div data-demo="rain-rings"></div>
+
+      <h2><span class="kicker">Step 4 · Storm light</span>The world flattens before it darkens</h2>
+      <p>
+        What does an overcast value of 0.94 <em>do</em>? Three things, all
+        downstream of one idea: the cloud deck swallows the direct sun and
+        re-emits its energy as diffuse skylight. The sky color collapses toward a
+        luminance-keyed grey (keyed, not constant, so storm noon stays brighter
+        than storm dusk). The sun's disc and glow fade with
+        <code>(1 − overcast)³</code>. And the direct-light color every glint and
+        slope reads is starved down to a tenth, while ambient holds — which is
+        why an overcast world looks <em>flat</em> before it looks dark: the
+        ratio of key to fill is the first casualty. Lightning is the same idea
+        inverted — a uniform <code>flash</code> floods the sky and relights the
+        direct term for a few hundred milliseconds:
+      </p>
+
+      <div data-demo="storm-light"></div>
+
+      <aside class="note">
+        <span class="note-label">Aside · The storm that grounds the bird</span>
+        <p>
+          Real ospreys sit out heavy weather — wet feathers fly badly, and rain
+          ruins the view of the fish through a churned surface. In the game,
+          storm targets feed straight into the flight model's wind term and the
+          spotting system's noise floor, so "too rough to hunt" emerges from the
+          numbers instead of a scripted lockout. The dial never says difficulty;
+          it says weather.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Onward</span>What this unlocks</h2>
+      <p>
+        The hero up top is the whole post running at once: the machine cycling,
+        clouds thickening on cue, crests breaking, rain ringing the bus,
+        lightning resetting the exposure of the world for a heartbeat. One
+        machine, five readers, zero special cases. What the weather has not
+        touched yet is the far side of the clock — the hours after the front
+        clears, when the sky goes truly dark and a different light source takes
+        the stage. Next post: the moon gets a path, the stars get hashed into the
+        dome, and the lake learns to carry a glitter road at midnight.
+      </p>
+    </main>
+    <footer>
+      <p>Stillwater — building Fish Hawk in public, one system at a time.</p>
+    </footer>
+    <script type="module" src="/src/weather.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" sizes="512x512" type="image/png" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0a0b10" />
+    <title>The Hatch — Stillwater</title>
+    <meta
+      name="description"
+      content="A clock-driven mayfly emergence: the full life cycle as a particle state machine, fish rising to meet it, and every rise broadcast on the disturbance bus as a ring — the food chain telegraphing itself."
+    />
+  </head>
+  <body>
+    <header class="hero">
+      <div data-demo="hero-hatch"></div>
+      <div class="hero-title">
+        <h1>The Hatch</h1>
+        <p class="subtitle">
+          The world clock crosses seven in the evening and the lake changes
+          state: mayflies up, fish up, rings everywhere. Watch one full
+          evening play out — it loops every couple of minutes.
+        </p>
+      </div>
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <span class="hero-scroll-hint-text">Scroll down to read</span>
+        <span class="hero-scroll-hint-arrow">↓</span>
+      </div>
+    </header>
+    <main>
+      <p>
+        <a href="/fish.html">Last post</a> ended with a loaded gun: a school
+        of fish carrying a dormant rise behavior, waiting for a reason to use
+        it. This post is the reason. In the finished game, the dusk hatch is
+        the daily event that reorganizes everything — fish that spent the
+        afternoon holding the 2–10 m contour come up to feed, and every gulp
+        at the surface emits a <code>rise</code> on
+        <a href="/touchgo.html">the disturbance bus</a>, which the water
+        renders as an expanding ring. For the player circling overhead, rings
+        are the third and best telegraph (after glints and shadows): a ring is
+        a fish, <em>right there</em>, committed to the surface. For the
+        designer, the hatch is the daily rhythm the whole game schedules
+        itself around: hunt the evening rise, or go to bed hungry.
+      </p>
+      <p>
+        Mechanically the hatch is three small systems: a timing function on
+        the world clock, a particle population with a real life cycle, and the
+        coupling that lets fish eat particles. None of them is individually
+        clever; the drama is entirely in the wiring.
+      </p>
+
+      <h2><span class="kicker">Step 1 · The clock decides</span>Intensity as a function of hour</h2>
+      <p>
+        Everything keys off one pure function, <code>hatchIntensity(hour) →
+        0..1</code>: a Gaussian bump centered at 19:24 with a standard
+        deviation of about an hour, plus a faint late-afternoon shoulder. Why
+        dusk? Real mayflies time emergence for the failing light, the best
+        compromise between two predators: too early and the duns drift in full
+        view of fish below and birds above; too late and the cold kills the
+        wing-drying. The curve below is the season's metronome — the
+        <a href="/ripples.html">wind field</a> says what the weather is doing,
+        the <code>clock</code> says what time it is, and this function turns
+        time into <em>appetite</em>.
+      </p>
+      <p>
+        The important design decision is that intensity is a <em>function</em>,
+        not a state machine. Nothing stores "the hatch is on": the spawner
+        asks the function, the fish's hunger asks the function, and (next
+        post) the swallows' activity asks the function. They can never
+        disagree, the way ripples and grass can never disagree about the wind,
+        because they're all reading the same arithmetic.
+      </p>
+      <div data-demo="clock"></div>
+
+      <h2><span class="kicker">Step 2 · One insect, five lives</span>The life cycle as a state machine</h2>
+      <p>
+        A mayfly isn't one particle, it's five in a trench coat — and the
+        stages matter to gameplay, because only some of them are food at the
+        surface. Each particle carries a stage and a timer, and moves through
+        the chain:
+      </p>
+      <pre><code>NYMPH    swims up from the bed at ~0.25 m/s          <span class="cm">// invisible from above, en route</span>
+DUN      rides the surface film while wings dry      <span class="cm">// 4–12 s — THE vulnerable window</span>
+FLYING   climbs to the swarm band, dances            <span class="cm">// bobbing column, holds station upwind</span>
+SPINNER  dips to the water laying eggs, 2–4 touches  <span class="cm">// each dip is a tiny bus event</span>
+SPENT    flat on the film, drifting                  <span class="cm">// easy calories until it expires</span></code></pre>
+      <p>
+        The motion per stage is a few lines each. Nymphs rise with a wriggle.
+        Duns sit <em>on</em> the live surface — their height is
+        <code>waterHeightAt(x, z, t)</code>, so they bob with the ambient
+        waves — and drift at a small fraction of the wind. Fliers run a
+        damped spring toward a personal altitude in the swarm band with a
+        sinusoidal dance on top, thrusting gently upwind to hold station
+        (which is why a real swarm streams like a flag: every insect faces
+        the wind). Spinners descend, kiss the water, and bounce — and each
+        kiss may emit a <code>rain</code>-kind disturbance with raindrop
+        energy, because to the water an egg-laying touch and a drizzle drop
+        are the same event. Emergence position isn't random either: nymphs
+        of the big lake species live in silt at 0.5–6 m, so spawn sites are
+        rejection-sampled against <a href="/lakebed.html">the bathymetry</a>
+        once at startup. Below, the whole conveyor runs up close with each
+        stage tinted — drag the hour and watch the population pipeline fill
+        and drain.
+      </p>
+      <div data-demo="lifecycle"></div>
+      <aside class="note">
+        <span class="note-label">Aside · The oldest wings in the air</span>
+        <p>
+          Mayflies (order <em>Ephemeroptera</em>, "short-lived wings") have
+          been doing this for over 300 million years — before birds, before
+          pterosaurs, almost before anything else flew. They're also the only
+          insects that molt <em>after</em> getting wings: the dun that
+          escapes the water molts once more into the glassy-winged spinner
+          that mates, lays, and dies, often inside a day. Adults can't eat;
+          they don't even have working mouths. The entire airborne phase is
+          reproduction on a deadline, which is why the hatch is so punctual
+          — and so feastable.
+        </p>
+      </aside>
+
+      <h2><span class="kicker">Step 3 · Rings on the bus</span>Fish meet flies</h2>
+      <p>
+        Now connect the layers. Every frame, the hatch hands the school a list
+        of surface food — duns and spent spinners, the floating stages. The
+        school update takes a <code>hunger</code> argument (the demo gives you
+        a slider; the game passes <code>hatchIntensity(clock.hour)</code>),
+        and each cruising fish shallower than ~3.5 m rolls a small chance per
+        second, scaled by hunger, to commit to a rise: pick the nearest
+        floating fly within reach, drive at the surface, and on arrival —
+      </p>
+      <pre><code>disturb({ kind: "rise", x, z, energy: 0.04 + 0.04·size, radius: 0.12 + 0.3·size })</code></pre>
+      <p>
+        That call is the entire interface between the fish and the rest of
+        the game. The water surface subscribes and draws an expanding
+        capillary ring, exactly as it did for
+        <a href="/touchgo.html">the osprey's landing</a>; the audio season
+        will subscribe and synthesize the <em>plip</em>; and the hunt will
+        read the school's recent-rise list to score your approach. The fish
+        never knows who's listening. After the gulp it eats the fly (the
+        hatch removes the particle — this is a real transaction, not an
+        animation), then dives on a refractory cooldown so no fish machine-guns
+        the surface. Rises cluster where duns cluster, duns cluster where
+        nymph habitat is, and nymph habitat is bathymetry — so the rings
+        you'll hunt by are, four links down a chain, the shape of the lakebed
+        showing through.
+      </p>
+      <div data-demo="rises"></div>
+      <aside class="note">
+        <span class="note-label">Aside · Reading rises like a fly angler</span>
+        <p>
+          Anglers classify rise forms the way we're teaching the player to:
+          a slow head-and-tail roll means fish sipping spent spinners; a
+          splashy rise means chasing emergers before they escape; a subtle
+          bulge with no break means feeding just <em>under</em> the film.
+          The information density of a ring is real — size, sharpness, and
+          rhythm all say what the fish is doing. Our single ring-per-rise is
+          the first rung of that ladder, with energy already scaled by fish
+          size so bigger fish make bigger promises.
+        </p>
+      </aside>
+
+      <p>
+        The lake now has a daily appointment. Fish hold their contour all
+        afternoon, the clock leans into evening, the swarm lifts off, and the
+        surface starts printing targets — no UI, just consequences. But fish
+        aren't the only ones who keep this appointment. Swallows hawk the same
+        swarm from the air, writing their own dotted lines on the water;
+        geese commute over it at altitude in a V we'll derive from wingtip
+        physics; and something much bigger is circling with opinions about
+        <em>your</em> future catches. The airspace gets crowded next, in
+        <a href="/flocks.html">Other Wings</a>.
+      </p>
+    </main>
+    <footer>
+      <p><a href="https://github.com/ericrius1/stillwater">Source on GitHub</a></p>
+    </footer>
+    <script type="module" src="/src/hatch.ts"></script>
+  </body>
+</html>
